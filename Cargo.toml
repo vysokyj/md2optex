@@ -1,5 +1,5 @@
 [package]
-name = "md2opmac"
+name = "md2optex"
 version = "0.1.0"
 edition = "2024"
 

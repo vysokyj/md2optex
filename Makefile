@@ -1,4 +1,4 @@
-BINARY   = md2opmac
+BINARY   = md2optex
 DESTDIR  ?= /usr/local/bin
 EXAMPLE  ?= examples/ukazka.md
 BUILDDIR  = build
@@ -38,7 +38,7 @@ tex: build
 
 # Vygeneruje TeX a přeloží ho do PDF pomocí OpTeX
 pdf: tex
-	cd $(BUILDDIR) && pdfcsplain -interaction=nonstopmode ukazka.tex
+	cd $(BUILDDIR) && optex -interaction=nonstopmode ukazka.tex
 	@echo "Výstup: $(BUILDDIR)/ukazka.pdf"
 
 # Otevře PDF v prohlížeči (xdg-open)

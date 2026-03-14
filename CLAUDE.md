@@ -1,10 +1,10 @@
-# md2opmac
+# md2optex
 
-CLI nástroj v Rustu, který převádí Markdown na TeX s makry OPmac (OpTeX).
+CLI nástroj v Rustu, který převádí Markdown na TeX s makry OpTeX (OpTeX).
 
 ## Cíl projektu
 
-Čte Markdown soubor (nebo stdin) a na stdout (nebo do souboru) vypisuje validní TeX zdrojový kód využívající makra OPmac.
+Čte Markdown soubor (nebo stdin) a na stdout (nebo do souboru) vypisuje validní TeX zdrojový kód využívající makra OpTeX.
 
 ## Konvence
 
@@ -21,15 +21,15 @@ CLI nástroj v Rustu, který převádí Markdown na TeX s makry OPmac (OpTeX).
 src/
   main.rs       – vstupní bod, zpracování argumentů (clap)
   parser.rs     – parsování Markdown pomocí pulldown-cmark
-  renderer.rs   – převod událostí parseru na OPmac TeX výstup
+  renderer.rs   – převod událostí parseru na OpTeX TeX výstup
   error.rs      – vlastní chybové typy
 tests/
   *.rs          – integrační testy (vstup MD → očekávaný TeX výstup)
 ```
 
-## Mapování Markdown → OPmac
+## Mapování Markdown → OpTeX
 
-| Markdown              | OPmac TeX                        |
+| Markdown              | OpTeX TeX                        |
 |-----------------------|----------------------------------|
 | `# Nadpis`            | `\chap Nadpis`                   |
 | `## Podnadpis`        | `\sec Podnadpis`                 |
@@ -52,16 +52,13 @@ tests/
 
 Zdrojem je GFM tabulka (rozšíření CommonMark, podporováno pulldown-cmark s feature `ENABLE_TABLES`).
 
-Zarovnání sloupců z GFM (`:---`, `:---:`, `---:`) se mapuje na OPmac specifikátory `l`, `c`, `r`.
-Záhlaví tabulky se oddělí `\hline` nad i pod:
+Zarovnání sloupců z GFM (`:---`, `:---:`, `---:`) se mapuje na OpTeX specifikátory `l`, `c`, `r`.
+Záhlaví tabulky se ukončí `\crli` (OpTeX příkaz pro řádek s linkou pod ním):
 
 ```tex
 \table{lcr}{
-\hline
-Hlavička 1 & Hlavička 2 & Hlavička 3 \cr
-\hline
+Hlavička 1 & Hlavička 2 & Hlavička 3 \crli
 Buňka A & Buňka B & Buňka C \cr
-\hline
 }
 ```
 
@@ -91,7 +88,7 @@ Tyto transformace se aplikují na textový obsah při renderování.
 
 Markdown nemá standardní zápis pro uvozovky – konvertuj ASCII uvozovky na české:
 
-- `"text"` nebo `„text"` → `\uv{text}` (OPmac makro, vysází „text")
+- `"text"` nebo `„text"` → `\uv{text}` (OpTeX makro, vysází „text")
 - Vnořené uvozovky: `"vnější ‚vnitřní' text"` → `\uv{vnější \uv{vnitřní} text}`
 
 ### Pomlčka a spojovník
@@ -122,12 +119,14 @@ Tato transformace se aplikuje pouze na textové uzly (ne uvnitř `\tt`, URL, atd
 
 ### Záhlaví dokumentu
 
-Generovaný TeX soubor začíná:
+OpTeX je LuaTeX formát – preambule neobsahuje `\input optex`. Generovaný soubor začíná:
 
 ```tex
-\chyph
-\input opmac
+\fontfam[LM]
+\uselanguage{czech}
 ```
+
+Kompilace: `optex dokument.tex`
 
 ## Struktura projektu knihy
 
@@ -162,7 +161,7 @@ font         = "palatino"       # název fontu pro \fontfam
 zakladni_vel = "11pt"           # základní velikost písma
 odstavec     = "indent"         # indent | noindent (první odstavec po nadpisu)
 
-# okraje v mm (volitelné, jinak OPmac výchozí)
+# okraje v mm (volitelné, jinak OpTeX výchozí)
 okraj_vlevo  = 35
 okraj_vpravo = 25
 okraj_nahore = 30
@@ -183,11 +182,11 @@ styl = "kniha"                  # název vestavěného stylu nebo uživatelskéh
 
 ### Styly
 
-Styl je TeX snippet (`\input`ovaný za preambulí) který může předefinovat OPmac makra, nastavit fonty, okraje apod.
+Styl je TeX snippet (`\input`ovaný za preambulí) který může předefinovat OpTeX makra, nastavit fonty, okraje apod.
 
 **Pořadí hledání podle názvu** (bez přípony `.tex`):
 1. `./styles/<název>.tex` – lokálně v projektu knihy
-2. `~/.config/md2opmac/styles/<název>.tex` – uživatelské styly
+2. `~/.config/md2optex/styles/<název>.tex` – uživatelské styly
 3. Vestavěné styly – embedded v binárce (`include_str!`)
 
 **Vestavěné styly:**
@@ -197,18 +196,16 @@ Styl je TeX snippet (`\input`ovaný za preambulí) který může předefinovat O
 | `kniha`    | beletrie – patičkový font, symetrické okraje, živá záhlaví  |
 | `odborny`  | odborná publikace – širší vnější okraj pro poznámky          |
 | `manual`   | technická dokumentace – výraznější bloky kódu, sans-serif    |
-| `minimal`  | holé OPmac výchozí hodnoty bez úprav                         |
+| `minimal`  | holé OpTeX výchozí hodnoty bez úprav                         |
 
 Výchozí styl pokud není nic uvedeno: `minimal`.
 
 Hodnoty z `metadata.toml` se promítnou do preambule vygenerovaného TeX souboru:
 
 ```tex
-\input opmac
-\language\czech
-\fontfam[palatino]
+\fontfam[Palatino]
+\uselanguage{czech}
 \typosize[11/13]
-\bookfont
 
 \tit Název knihy
 \author Jméno Příjmení
@@ -218,7 +215,7 @@ Hodnoty z `metadata.toml` se promítnou do preambule vygenerovaného TeX souboru
 ## Použití (plánované CLI rozhraní)
 
 ```
-md2opmac [OPTIONS] [INPUT]
+md2optex [OPTIONS] [INPUT]
 
 Arguments:
   [INPUT]  Vstupní Markdown soubor (výchozí: stdin)

@@ -1,16 +1,24 @@
-# md2opmac
+# md2optex
 
-Převodník Markdown → TeX s makry [OPmac (OpTeX)](https://petr.olsak.net/optex/).
+Převodník Markdown → TeX pro [OpTeX](https://petr.olsak.net/optex/).
 
-Čte Markdown soubor (nebo stdin) a vypisuje validní TeX zdrojový kód připravený pro překlad pomocí OpTeXu.
+Čte Markdown soubor (nebo stdin) a vypisuje validní OpTeX zdrojový kód připravený pro překlad pomocí `optex` (LuaHBTeX formát).
+
+## Požadavky
+
+- Rust 1.85+ (edition 2024), `cargo`
+- OpTeX: balíčky `texlive-basic`, `texlive-luatex`, `texlive-langczechslovak`
+
+```bash
+# Arch Linux
+sudo pacman -S texlive-basic texlive-luatex texlive-langczechslovak
+```
 
 ## Instalace
 
-**Požadavky:** Rust 1.85+ (edition 2024), `cargo`
-
 ```bash
-git clone https://github.com/vas-login/md2opmac
-cd md2opmac
+git clone https://github.com/vas-login/md2optex
+cd md2optex
 make install          # zkompiluje release build a zkopíruje do /usr/local/bin
 ```
 
@@ -23,7 +31,7 @@ make install DESTDIR=~/.local/bin
 ## Použití
 
 ```
-md2opmac [OPTIONS] [INPUT]
+md2optex [OPTIONS] [INPUT]
 
 Arguments:
   [INPUT]  Vstupní Markdown soubor nebo adresář s knihou (výchozí: stdin)
@@ -40,24 +48,27 @@ Options:
 
 ```bash
 # Jeden soubor → stdout
-md2opmac dokument.md
+md2optex dokument.md
 
 # Soubor → soubor
-md2opmac dokument.md -o dokument.tex
+md2optex dokument.md -o dokument.tex
 
 # Ze stdin
-cat dokument.md | md2opmac -o dokument.tex
+cat dokument.md | md2optex -o dokument.tex
 
 # Adresář knihy (viz níže)
-md2opmac kniha/ -o kniha.tex
+md2optex kniha/ -o kniha.tex
 
 # Se slovníkem dělení slov
-md2opmac dokument.md --hyphenation-dict hyphenation.txt
+md2optex dokument.md --hyphenation-dict hyphenation.txt
+
+# Kompilace do PDF
+optex dokument.tex
 ```
 
-## Mapování Markdown → OPmac
+## Mapování Markdown → OpTeX
 
-| Markdown | OPmac TeX |
+| Markdown | OpTeX |
 |---|---|
 | `# Nadpis` | `\chap Nadpis` |
 | `## Podnadpis` | `\sec Podnadpis` |
@@ -126,7 +137,7 @@ rok    = 2026
 
 [sazba]
 papir        = "a4"
-font         = "palatino"
+font         = "Palatino"
 zakladni_vel = "11pt"
 okraj_vlevo  = 35
 okraj_vpravo = 25

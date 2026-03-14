@@ -13,7 +13,7 @@ use error::Error;
 use metadata::Metadata;
 
 #[derive(Parser)]
-#[command(version, about = "Převodník Markdown → OPmac TeX")]
+#[command(version, about = "Převodník Markdown → OpTeX")]
 struct Args {
     /// Vstupní Markdown soubor nebo adresář s knihou (výchozí: stdin)
     input: Option<PathBuf>,
