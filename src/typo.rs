@@ -1,4 +1,4 @@
-/// Aplikuje české typografické konvence na textový uzel.
+/// Applies Czech typographic conventions to a plain-text node.
 pub fn apply(text: &str) -> String {
     let s = fix_ellipsis(text);
     let s = fix_dashes(&s);
@@ -7,22 +7,23 @@ pub fn apply(text: &str) -> String {
     s
 }
 
-/// `...` → `\dots`
+/// Replaces `...` with `\dots`.
 fn fix_ellipsis(s: &str) -> String {
     s.replace("...", r"\dots")
 }
 
-/// Pomlčky: ` --- ` nebo ` -- ` → ` --` s nezlomitelnou mezerou před ní (`~--`)
+/// Inserts a non-breaking tilde before en-dash (`--`) and em-dash (`---`)
+/// so they cannot be left at the end of a line.
 fn fix_dashes(s: &str) -> String {
-    // em dash (---) i en dash (--)
     let s = s.replace(" --- ", "~--- ");
     let s = s.replace(" -- ", "~-- ");
     s
 }
 
-/// Převede ASCII i české uvozovky na \uv{}.
-/// ASCII `"`: první je otevírací, druhá zavírací.
-/// Unicode „ (U+201E) → otevírací, " (U+201C) → zavírací.
+/// Converts ASCII and Czech Unicode quotes to `\uv{}`.
+///
+/// ASCII `"`: first occurrence opens (`\uv{`), second closes (`}`).
+/// Unicode „ (U+201E) → opening, " (U+201C) → closing.
 fn fix_quotes(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut open = false;
@@ -39,25 +40,27 @@ fn fix_quotes(s: &str) -> String {
                 }
             }
             '\u{201E}' => {
-                // „ – česká otevírací uvozovka
+                // „ — Czech opening double quote
                 result.push_str(r"\uv{");
                 open = true;
             }
             '\u{201C}' => {
-                // " – česká zavírací uvozovka
+                // " — Czech closing double quote
                 result.push('}');
                 open = false;
             }
             _ => result.push(c),
         }
     }
-    // Nezavřená uvozovka – nech jak je (neměla by nastat)
+    // Unclosed quote — leave as-is (should not occur in well-formed input)
     result
 }
 
-/// Nezlomitelná mezera za jednopísmennými předložkami a spojkami.
+/// Inserts a non-breaking space (`~`) after single- and two-letter
+/// Czech prepositions and conjunctions to prevent them from appearing
+/// at the end of a line.
 fn fix_nbsp(s: &str) -> String {
-    // Předložky a spojky délky 1–2 znaky
+    // Prepositions and conjunctions of length 1–2 characters
     static PATTERNS: &[&str] = &[
         "ve ", "ze ", "se ", "ke ", "ku ",
         "v ", "z ", "s ", "k ", "u ", "o ", "i ", "a ",
@@ -71,14 +74,14 @@ fn fix_nbsp(s: &str) -> String {
     result
 }
 
-/// Nahradí `pat` za `replacement` pouze na slovní hranici (předcházený mezerou nebo začátkem).
+/// Replaces `pat` with `replacement` only at a word boundary
+/// (preceded by a space, newline, `(`, or start of string).
 fn replace_word_boundary(s: &str, pat: &str, replacement: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut rest = s;
 
     while let Some(pos) = rest.find(pat) {
         let before = &rest[..pos];
-        // Platná hranice: začátek řetězce nebo předcházen mezerou / interpunkcí
         let is_boundary = pos == 0
             || before
                 .chars()

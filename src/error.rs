@@ -14,15 +14,15 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Io(e) => write!(f, "I/O chyba: {e}"),
-            Error::TomlParse(e) => write!(f, "Chyba v metadata.toml: {e}"),
+            Error::Io(e) => write!(f, "I/O error: {e}"),
+            Error::TomlParse(e) => write!(f, "Error in metadata.toml: {e}"),
             Error::MissingChaptersDir(p) => {
-                write!(f, "Adresář kapitol nenalezen: {}", p.display())
+                write!(f, "Chapters directory not found: {}", p.display())
             }
             Error::HyphenationDict(p, e) => {
-                write!(f, "Nelze načíst slovník dělení '{}': {e}", p.display())
+                write!(f, "Cannot read hyphenation dictionary '{}': {e}", p.display())
             }
-            Error::StyleNotFound(s) => write!(f, "Styl '{s}' nenalezen"),
+            Error::StyleNotFound(s) => write!(f, "Style '{s}' not found"),
         }
     }
 }

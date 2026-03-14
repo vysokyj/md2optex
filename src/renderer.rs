@@ -12,10 +12,10 @@ pub fn render(
 ) -> Result<String, Error> {
     let mut out = String::new();
 
-    // Preambule
+    // Preamble
     out.push_str(&build_preamble(metadata, hyphenation)?);
 
-    // Tělo dokumentu
+    // Document body
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH
         | Options::ENABLE_TASKLISTS;
@@ -34,29 +34,30 @@ pub fn render(
 fn build_preamble(metadata: Option<&Metadata>, hyphenation: &[String]) -> Result<String, Error> {
     let mut s = String::new();
 
-    // OpTeX je LuaTeX formát – nepotřebuje \input optex, je pre-loadován
-    s.push_str("\\fontfam[LM]\n"); // Latin Modern Unicode – podpora češtiny
+    // OpTeX is a LuaTeX format — no \input optex needed, it is pre-loaded by the engine.
+    s.push_str("\\fontfam[LM]\n"); // Latin Modern Unicode — required for Czech characters
     s.push_str("\\uselanguage{czech}\n");
-    // Definice maker pro citace (nejsou součástí OpTeX)
+    // \begcitation/\endcitation are not part of OpTeX; define them here.
     s.push_str("\\def\\begcitation{\\par\\medskip\\leftskip=2em\\rightskip=2em\\noindent}\n");
     s.push_str("\\def\\endcitation{\\par\\leftskip=0em\\rightskip=0em\\medskip}\n");
 
     if let Some(meta) = metadata {
-        if let Some(sazba) = &meta.sazba {
-            if let Some(font) = &sazba.font {
+        if let Some(ts) = &meta.typesetting {
+            if let Some(font) = &ts.font {
                 s.push_str(&format!("\\fontfam[{}]\n", font));
             }
-            if let Some(vel) = &sazba.zakladni_vel {
-                // např. "11pt" → \typosize[11/13]
-                let pt: u32 = vel.trim_end_matches("pt").parse().unwrap_or(10);
+            if let Some(size) = &ts.base_size {
+                // e.g. "11pt" → \typosize[11/13]
+                let pt: u32 = size.trim_end_matches("pt").parse().unwrap_or(10);
                 let leading = pt * 13 / 10;
                 s.push_str(&format!("\\typosize[{pt}/{leading}]\n"));
             }
-            if let Some(vlevo) = sazba.okraj_vlevo {
-                s.push_str(&format!("\\margins/1 a4 ({vlevo}mm,{},{},{}mm)\n",
-                    sazba.okraj_vpravo.unwrap_or(25),
-                    sazba.okraj_nahore.unwrap_or(30),
-                    sazba.okraj_dole.unwrap_or(30),
+            if let Some(left) = ts.margin_left {
+                s.push_str(&format!(
+                    "\\margins/1 a4 ({left}mm,{},{},{}mm)\n",
+                    ts.margin_right.unwrap_or(25),
+                    ts.margin_top.unwrap_or(30),
+                    ts.margin_bottom.unwrap_or(30),
                 ));
             }
         }
@@ -73,14 +74,14 @@ fn build_preamble(metadata: Option<&Metadata>, hyphenation: &[String]) -> Result
     s.push('\n');
 
     if let Some(meta) = metadata {
-        if let Some(kniha) = &meta.kniha {
-            if let Some(nazev) = &kniha.nazev {
-                s.push_str(&format!("\\tit {nazev}\n"));
+        if let Some(book) = &meta.book {
+            if let Some(title) = &book.title {
+                s.push_str(&format!("\\tit {title}\n"));
             }
-            if let Some(autor) = &kniha.autor {
-                s.push_str(&format!("\\author {autor}\n"));
+            if let Some(author) = &book.author {
+                s.push_str(&format!("\\author {author}\n"));
             }
-            if kniha.nazev.is_some() || kniha.autor.is_some() {
+            if book.title.is_some() || book.author.is_some() {
                 s.push_str("\\maketitle\n");
             }
         }
@@ -90,7 +91,7 @@ fn build_preamble(metadata: Option<&Metadata>, hyphenation: &[String]) -> Result
     Ok(s)
 }
 
-/// Escapuje speciální TeX znaky v textu (mimo matematický mód).
+/// Escapes special TeX characters in plain text (outside math mode).
 fn tex_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
@@ -142,7 +143,7 @@ impl Context {
             Event::End(tag)   => self.end_tag(tag, out),
             Event::Text(t)    => {
                 if self.in_image {
-                    // alt text zahazujeme
+                    // alt text is discarded — OpTeX does not use it
                 } else if self.in_code_block {
                     out.push_str(&t);
                 } else {
@@ -157,7 +158,7 @@ impl Context {
             Event::SoftBreak => out.push('\n'),
             Event::HardBreak => out.push_str("\\\\\n"),
             Event::Rule      => out.push_str("\\noindent\\hrule\n\n"),
-            Event::Html(_) | Event::InlineHtml(_) => {} // zahazujeme
+            Event::Html(_) | Event::InlineHtml(_) => {} // discarded
             _ => {}
         }
     }
@@ -238,7 +239,7 @@ impl Context {
             }
             TagEnd::TableHead => {
                 self.in_table_head = false;
-                out.push_str(" \\crli\n"); // linka pod záhlavím
+                out.push_str(" \\crli\n"); // horizontal rule below the header row
             }
             TagEnd::TableRow => {
                 out.push_str(" \\cr\n");
@@ -283,7 +284,7 @@ fn measure_image(path: &str, dpi: u32) -> String {
             }
         }
         Err(_) => {
-            eprintln!("Varování: nelze změřit obrázek '{path}', použito \\hsize");
+            eprintln!("Warning: cannot measure image '{path}', using \\hsize");
             "\\hsize".to_owned()
         }
     }

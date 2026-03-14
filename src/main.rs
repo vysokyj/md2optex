@@ -13,27 +13,27 @@ use error::Error;
 use metadata::Metadata;
 
 #[derive(Parser)]
-#[command(version, about = "Převodník Markdown → OpTeX")]
+#[command(version, about = "Markdown to OpTeX converter")]
 struct Args {
-    /// Vstupní Markdown soubor nebo adresář s knihou (výchozí: stdin)
+    /// Input Markdown file or book directory (default: stdin)
     input: Option<PathBuf>,
 
-    /// Výstupní TeX soubor (výchozí: stdout)
+    /// Output TeX file (default: stdout)
     #[arg(short, long)]
     output: Option<PathBuf>,
 
-    /// Slovník dělení slov (každý řádek: slo-vo)
+    /// Hyphenation dictionary file (one word per line: syl-la-ble)
     #[arg(long)]
     hyphenation_dict: Option<PathBuf>,
 
-    /// Rozlišení obrázků v DPI pro výpočet fyzické velikosti
+    /// Image resolution in DPI used to compute physical dimensions
     #[arg(long, default_value_t = 96)]
     dpi: u32,
 }
 
 fn main() {
     if let Err(e) = run() {
-        eprintln!("Chyba: {e}");
+        eprintln!("Error: {e}");
         std::process::exit(1);
     }
 }
@@ -42,8 +42,8 @@ fn run() -> Result<(), Error> {
     let args = Args::parse();
 
     let (markdown, metadata) = load_input(&args)?;
-    let hyphenation_dict = load_hyphenation(&args, metadata.as_ref())?;
-    let tex = renderer::render(&markdown, metadata.as_ref(), &hyphenation_dict, args.dpi)?;
+    let hyphenation = load_hyphenation(&args, metadata.as_ref())?;
+    let tex = renderer::render(&markdown, metadata.as_ref(), &hyphenation, args.dpi)?;
 
     match &args.output {
         Some(path) => fs::write(path, tex)?,
@@ -78,12 +78,12 @@ fn load_input(args: &Args) -> Result<(String, Option<Metadata>), Error> {
 }
 
 fn load_chapters(dir: &PathBuf) -> Result<String, Error> {
-    let kapitoly = dir.join("kapitoly");
-    if !kapitoly.exists() {
-        return Err(Error::MissingChaptersDir(kapitoly));
+    let chapters_dir = dir.join("kapitoly");
+    if !chapters_dir.exists() {
+        return Err(Error::MissingChaptersDir(chapters_dir));
     }
 
-    let mut files: Vec<PathBuf> = fs::read_dir(&kapitoly)?
+    let mut files: Vec<PathBuf> = fs::read_dir(&chapters_dir)?
         .filter_map(|e| e.ok())
         .map(|e| e.path())
         .filter(|p| p.extension().map_or(false, |e| e == "md"))
@@ -103,7 +103,7 @@ fn load_hyphenation(args: &Args, metadata: Option<&Metadata>) -> Result<Vec<Stri
     let path = args
         .hyphenation_dict
         .clone()
-        .or_else(|| metadata.and_then(|m| m.cesty.as_ref()?.hyphenation.clone()));
+        .or_else(|| metadata.and_then(|m| m.paths.as_ref()?.hyphenation.clone()));
 
     let Some(path) = path else {
         return Ok(vec![]);

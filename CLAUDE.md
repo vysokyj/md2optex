@@ -9,7 +9,7 @@ CLI nástroj v Rustu, který převádí Markdown na TeX s makry OpTeX (OpTeX).
 ## Konvence
 
 - Jazyk kódu: Rust (edition 2021)
-- Chybové zprávy a výstup do terminálu: česky nebo anglicky, konzistentně
+- **Zdrojový kód kompletně anglicky** — komentáře, doc-stringy, názvy proměnných, chybové zprávy, vše
 - Knihovny: preferuj standardní crates (clap pro CLI, pulldown-cmark pro parsování MD)
 - Testy: unit testy v příslušném modulu (`#[cfg(test)]`), integrační testy v `tests/`
 - Formátování: `rustfmt` (výchozí konfigurace)
