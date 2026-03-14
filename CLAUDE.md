@@ -252,6 +252,42 @@ Konvertor z tohoto souboru sestaví `\hyphenation{}` blok a vloží ho do preamb
 
 Pokud soubor nelze přečíst, konvertor skončí s chybou (ne tichým fallbackem).
 
+## Implementation plan
+
+### Done ✓
+- CLI: `--output`, `--hyphenation-dict`, `--dpi`, stdin/stdout
+- Renderer: headings (H1–H4), paragraphs, bold, italic, inline code, fenced code blocks
+- Renderer: unordered and ordered lists, block quotes, horizontal rule
+- Renderer: links (`\ulink`), images (with `imagesize` measurement), tables (`\crli` header)
+- Renderer: HTML passthrough discarded
+- Typo: Czech quotes (`\uv{}`), dashes (`~--`), non-breaking spaces, ellipsis (`\dots`)
+- Book directory input: `metadata.toml` + `kapitoly/*.md` in alphabetical order
+- Metadata: title, author, font (`\fontfam`), base size (`\typosize`), margins
+- Hyphenation dictionary → `\hyphenation{}` block
+
+### Missing / not yet implemented
+
+#### High priority
+- [ ] **Integration tests** — `tests/` directory is empty; add end-to-end MD→TeX snapshot tests
+- [ ] **Style system** — `[styl]` in metadata.toml is parsed but ignored; implement lookup chain:
+  1. `./styles/<name>.tex` (relative to metadata.toml)
+  2. `~/.config/md2optex/styles/<name>.tex`
+  3. Built-in embedded styles: `kniha`, `odborny`, `manual`, `minimal`
+- [ ] **Unicode dash passthrough** — `–` (U+2013) and `—` (U+2014) in source text should be
+  converted to `--` / `---` (currently only ` -- ` / ` --- ` ASCII sequences are handled)
+
+#### Medium priority
+- [ ] **Nested single quotes** — `‚vnitřní'` (U+201A / U+2018) → `\uv{vnitřní}` for nested quotes
+- [ ] **`papir` setting** — paper size from metadata (`a4`/`b5`/`a5`) passed to `\margins`
+- [ ] **`odstavec` setting** — `indent`/`noindent` → `\parindent=0pt` or OpTeX default after headings
+- [ ] **`zahlaví` / `zapati`** — running headers/footers from metadata → `\headline` / `\footline`
+- [ ] **Strikethrough** — `~~text~~` is parsed (ENABLE_STRIKETHROUGH) but silently dropped;
+  map to `\strike{text}` or similar OpTeX macro
+
+#### Low priority
+- [ ] **Image path resolution** — `cesty.obrazky` prefix not applied to `\inspic` paths
+- [ ] **Task lists** — `- [x] item` is parsed (ENABLE_TASKLISTS) but silently dropped
+
 ## Workflow
 
 Po každé dílčí funkční změně (nový modul, nová feature, oprava bugu) ihned vytvoř commit s výstižným popisem co bylo přidáno/opraveno. Nečekej na větší celky.
