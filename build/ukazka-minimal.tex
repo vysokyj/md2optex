@@ -1,0 +1,135 @@
+\fontfam[LM]
+\uselanguage{czech}
+\def\begcitation{\par\medskip\leftskip=2em\rightskip=2em\noindent}
+\def\endcitation{\par\leftskip=0em\rightskip=0em\medskip}
+% minimal — sensible A4 defaults, no further customisation
+\margins/1 a4 (25,25,30,30)mm
+\footline={\hss\folio\hss}
+
+
+
+\chap Ukázkový dokument
+Toto je ukázkový Markdown soubor pro testování nástroje md2opmac.
+Obsahuje příklady všech podporovaných konstrukcí.
+
+
+\sec Formátování textu
+Tento odstavec obsahuje {\bf tučný text} a~{\it kurzívu}. Lze také kombinovat:
+{\bf tučná {\it tučná kurzíva} tučná}. Inline kód vypadá takto: {\tt int main()}.
+
+Druhý odstavec v~tomto oddíle. Text může obsahovat {\tt proměnné} nebo {\tt funkce()}.
+
+
+\sec České typografické konvence
+Nástroj automaticky aplikuje české typografické pravidla.
+
+Uvozovky: \uv{toto je v~uvozovkách} a~také \uv{toto je již česky}.
+
+Uvozovky se~seznamem a~pomlčkou:
+
+\begitems
+* \uv{Poslouchej svůj hlas~--- vypadá to na odpor, ale je v~něm touha.}
+* \uv{Druhá položka s~pomlčkou~--- taky funguje.}
+\enditems
+
+Pomlčka odděluje části věty~-- například takto. Nebo pomocí em-dash~--- takhle.
+
+Jednopísmenné předložky: v~lese, z~kopce, s~kamarádem, k~domovu, u~řeky.
+Spojky: Jan a~Marie, Petr i~Pavel, slunce o~půlnoci.
+
+Výpustka na konci věty\dots{}
+
+
+\secc Podpodnadpis s~příkladem
+Text na úrovni třetí nadpisové úrovně. Zde je odkaz na
+\ulink[https://petr.olsak.net/optex/]{stránku projektu OpTeX} a~ještě jeden
+\ulink[https://example.com]{odkaz s~titulkem}.
+
+
+\sec Seznamy
+Nečíslovaný seznam:
+
+\begitems
+* první položka
+* druhá položka s~{\bf tučným} textem
+* třetí položka s~{\tt kódem}
+\enditems
+
+Číslovaný seznam:
+
+\begitems \style n
+* první krok
+* druhý krok
+* třetí krok
+\enditems
+
+
+\sec Blok kódu
+Příklad Rust kódu:
+
+\begtt
+fn main() {
+    println!("Ahoj, světe!");
+    let x = 42;
+    let y = x * 2;
+    println!("Výsledek: {}", y);
+}
+\endtt
+
+Příklad bez specifikace jazyka:
+
+\begtt
+$ cargo build --release
+$ ./target/release/md2opmac vstup.md -o vystup.tex
+\endtt
+
+
+\sec Citace
+\begcitation
+\uv{Filozofie je příprava na smrt,} napsal Platón.
+Přijmi ji, i~když se~ti zdá teoretická.
+
+\endcitation
+
+\begcitation
+\uv{Kdo se~bojí, nesmí do lesa,} říká staré přísloví.
+Ale \uv{odvaha není absence strachu~-- je to rozhodnutí, že něco jiného je důležitější než strach.}
+
+\endcitation
+
+\begcitation
+Druhý odstavec citace obsahuje {\it formátování} a~{\tt kód}.
+
+\endcitation
+
+
+\sec Horizontální linka
+Text před oddělovačem.
+
+\noindent\hrule
+
+Text po oddělovači.
+
+
+\sec Tabulka
+Ukázka GFM tabulky se~zarovnáním sloupců:
+
+\table{lcr}{
+Název & Typ & Hodnota \crli
+alfa & string & 1 \cr
+beta & integer & 42 \cr
+gama & boolean & 0 \cr
+}
+
+
+\sec Obrázek
+Pokud obrázek existuje, změří se~a vloží automaticky:
+
+\begtt
+![Popisek](cesta/k/obrazku.png)
+\endtt
+
+Pokud soubor neexistuje, vypíše se~varování na stderr a~použije se~{\tt \char92 picw=\char92 hsize}.
+
+
+\bye

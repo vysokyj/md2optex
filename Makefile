@@ -1,6 +1,6 @@
 BINARY   = md2optex
 EXAMPLE  ?= examples/ukazka.md
-BUILDDIR  = build
+BUILDDIR  = target/examples
 STYLES    = minimal book academic manual
 
 .PHONY: all build release install uninstall test check fmt lint clean examples
@@ -37,14 +37,14 @@ examples:
 	@for style in $(STYLES); do \
 		echo "--- $$style ---"; \
 		./target/debug/$(BINARY) --style $$style $(EXAMPLE) \
-			-o $(BUILDDIR)/ukazka-$$style.tex; \
-		cd $(BUILDDIR) && \
+			-o $(CURDIR)/$(BUILDDIR)/ukazka-$$style.tex; \
+		cd $(CURDIR)/$(BUILDDIR) && \
 		optex -interaction=batchmode ukazka-$$style.tex \
 			>ukazka-$$style.stdout 2>&1 \
 		|| { echo "OpTeX failed for style $$style:"; \
 		     grep "^!" ukazka-$$style.log || cat ukazka-$$style.log; \
-		     exit 1; }; \
-		cd ..; \
+		     cd $(CURDIR); exit 1; }; \
+		cd $(CURDIR); \
 		echo "Output: $(BUILDDIR)/ukazka-$$style.pdf"; \
 	done
 	@echo "Done — PDFs in $(BUILDDIR)/:"

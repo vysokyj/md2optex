@@ -1,0 +1,193 @@
+This is LuaHBTeX, Version 1.24.0 (TeX Live 2026/Arch Linux)  (format=optex 2026.3.14)  14 MAR 2026 15:25
+ restricted system commands enabled.
+**ukazka-book.tex
+(./ukazka-book.tex This is OpTeX (Olsak's Plain TeX), version <1.19 Feb 2026>
+(/usr/share/texmf-dist/tex/optex/base/f-lmfonts.opm
+luaotfload | conf : Root cache directory is "/home/jirka/.texlive/texmf-var/luat
+ex-cache/generic/names".
+luaotfload | init : Loading fontloader "fontloader-2023-12-28.lua" from kpse-res
+olved path "/usr/share/texmf-dist/tex/luatex/luaotfload/fontloader-2023-12-28.lu
+a".
+"luaotfload@noligature"=\attribute3
+luaotfload | init : Context OpenType loader version 3.134
+"luaotfload_color_attribute"=\attribute4
+luaotfload | conf : Root cache directory is "/home/jirka/.texlive/texmf-var/luat
+ex-cache/generic/names".
+"luaotfload.letterspace_done"=\attribute5
+luaotfload | db : Font names database loaded from /home/jirka/.texlive/texmf-var
+/luatex-cache/generic/names/luaotfload-names.luc.gz
+FONT: [Latin Modern] -- \LMfonts (TeX Gyre fonts based on Computer Modern)
+ mods:{\roman \sans \quotset \ttset \ttprop \ttlight \ttcond \upital \dunhill s
+ubmods:\caps \slant \nbold \bolder } vars:{\rm \bf \it \bi \tt } math:{LM}
+Modifiers (selects subfamily):
+ \modreset .. implicit values (serif, bold extended, nocaps)
+ \sans ...... sans serif subfamily
+ \quotset ... quotation subfamily
+ \ttset ..... typewriter subfamily
+ \ttprop .... proportional typewriter-like subfamily
+ \ttlight ... light typewriter subfamily
+ \ttcond .... condensed typewriter subfamily
+ \upital .... upright italic (only \rm )
+ \dunhill ... dunhill roman subfamily (only \rm , \it )
+Sub-modifiers (selects special variants of given subfamily):
+ \caps ...... caps & small caps (available only at limited shapes)
+ \slant ..... slanted (default in some subfamilies)
+ \nbold ..... normal bold (extended bold is default)
+ \bolder .... extended bold
+Note: Text fonts support optical sizes, but LatinModern-Math only for scripts.
+ Use another CM-like family if optical sizes not wanted: \fontfam [NewCM]. 
+MATH-FONT: "[latinmodern-math]" -- unicode math prepared.
+(/usr/share/texmf-dist/tex/optex/base/unimath-codes.opm
+@:[unimath-codes] Uni math codes <2026-02-17>
+\_umathnumA=\count298
+\_umathnumB=\count299
+(/usr/share/texmf-dist/tex/optex/base/mathclass.opm) (/usr/share/texmf-dist/tex
+/optex/base/unimath-table.opm)))
+Loading hyphenation for Czech: \language=7 (cs)
+(/usr/share/texmf-dist/tex/generic/hyph-utf8/patterns/tex/hyph-cs.tex) (/usr/sh
+are/texmf-dist/tex/optex/base/f-pagella.opm
+FONT: [Pagella] -- \Pagella (TeX Gyre Pagella fonts based on Palatino)
+ mods:{\caps } vars:{\rm \bf \it \bi } math:{Pagella}
+Modifier:
+ \caps ...... caps & small caps
+ 
+) [1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}] [2]
+Overfull \hbox (31.87633pt too wide) in paragraph at lines 135--136
+[]\_tenrm Po-kud sou-bor ne-e-xis-tuje, vy-píše se va-ro-vání na stderr a po
+-u-žije se \_tentt \picw=\hsize\_tenrm . |
+
+\hbox(7.986+3.113)x372.73111, glue set - 1.0, direction TLT
+.\localpar
+..\localinterlinepenalty=0
+..\localbrokenpenalty=0
+..\localleftbox=null
+..\localrightbox=null
+.\hbox(0.0+0.0)x20.0, direction TLT
+.\_tenrm P
+.\kern-0.605 (font)
+.\_tenrm o
+.\discretionary (penalty 50)
+..< \_tenrm -
+.\_tenrm k
+.\_tenrm u
+.\_tenrm d
+.\glue(\spaceskip) 2.75 plus 1.375 minus 0.91667
+.\_tenrm s
+.\_tenrm o
+.\_tenrm u
+.\discretionary (penalty 50)
+..< \_tenrm -
+.\_tenrm b
+.\_tenrm o
+.\_tenrm r
+.\glue(\spaceskip) 2.75 plus 1.375 minus 0.91667
+.\_tenrm n
+.\_tenrm e
+.\discretionary (penalty 50)
+..< \_tenrm -
+.\_tenrm e
+.\discretionary (penalty 50)
+..< \_tenrm -
+.\_tenrm x
+.\_tenrm i
+.\_tenrm s
+.\discretionary (penalty 50)
+..< \_tenrm -
+..= \kern-0.165 (font)
+.\_tenrm t
+.\_tenrm u
+.\_tenrm j
+.\_tenrm e
+.\_tenrm ,
+.\glue(\spaceskip) 2.75 plus 1.375 minus 0.91667
+.\_tenrm v
+.\_tenrm y
+.\discretionary (penalty 50)
+..< \kern-0.275 (font)
+..< \_tenrm -
+.\_tenrm p
+.\_tenrm í
+.\_tenrm š
+.\_tenrm e
+.\glue(\spaceskip) 2.75 plus 1.375 minus 0.91667
+.\_tenrm s
+.\_tenrm e
+.\penalty 10000
+.\glue(\spaceskip) 2.75 plus 1.375 minus 0.91667
+.\_tenrm v
+.\kern-0.33 (font)
+.\_tenrm a
+.\discretionary (penalty 50)
+..< \_tenrm -
+.\_tenrm r
+.\_tenrm o
+.\discretionary (penalty 50)
+..< \_tenrm -
+..= \kern-0.275 (font)
+.\_tenrm v
+.\kern-0.33 (font)
+.\_tenrm á
+.\_tenrm n
+.\_tenrm í
+.\glue(\spaceskip) 2.75 plus 1.375 minus 0.91667
+.\_tenrm n
+.\_tenrm a
+.\glue(\spaceskip) 2.75 plus 1.375 minus 0.91667
+.\_tenrm s
+.\kern-0.165 (font)
+.\_tenrm t
+.\_tenrm d
+.\_tenrm e
+.\_tenrm r
+.\_tenrm r
+.\glue(\spaceskip) 2.75 plus 1.375 minus 0.91667
+.\_tenrm a
+.\penalty 10000
+.\glue(\spaceskip) 2.75 plus 1.375 minus 0.91667
+.\_tenrm p
+.\_tenrm o
+.\discretionary (penalty 50)
+..< \_tenrm -
+.\_tenrm u
+.\discretionary (penalty 50)
+..< \_tenrm -
+.\_tenrm ž
+.\_tenrm i
+.\kern-0.165 (font)
+.\_tenrm j
+.\_tenrm e
+.\glue(\spaceskip) 2.75 plus 1.375 minus 0.91667
+.\_tenrm s
+.\_tenrm e
+.\penalty 10000
+.\glue(\spaceskip) 2.75 plus 1.375 minus 0.91667
+.\_tentt \
+.\_tentt p
+.\_tentt i
+.\_tentt c
+.\_tentt w
+.\_tentt =
+.\_tentt \
+.\_tentt h
+.\_tentt s
+.\_tentt i
+.\_tentt z
+.\_tentt e
+.\_tenrm .
+.\penalty 10000
+.\glue(\parfillskip) 0.0 plus 1.0fil
+.\glue(\rightskip) 0.0
+.\rule(*+*)x5.0
+
+[3])</usr/share/texmf-dist/fonts/opentype/public/lm-math/latinmodern-math.otf></
+usr/share/texmf-dist/fonts/opentype/public/lm/lmmono10-regular.otf></usr/share/t
+exmf-dist/fonts/opentype/public/tex-gyre/texgyrepagella-italic.otf></usr/share/t
+exmf-dist/fonts/opentype/public/tex-gyre/texgyrepagella-regular.otf></usr/share/
+texmf-dist/fonts/opentype/public/tex-gyre/texgyrepagella-bold.otf>
+Output written on ukazka-book.pdf (3 pages, 29188 bytes).
+
+PDF statistics: 49 PDF objects out of 1000 (max. 8388607)
+ 28 compressed objects within 1 object stream
+ 0 named destinations out of 1000 (max. 1048576)
+ 1 words of extra memory for PDF output out of 10000 (max. 100000000)
+
