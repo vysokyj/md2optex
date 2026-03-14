@@ -5,7 +5,7 @@ mod typo;
 
 use std::fs;
 use std::io::{self, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 
@@ -77,7 +77,7 @@ fn load_input(args: &Args) -> Result<(String, Option<Metadata>), Error> {
     }
 }
 
-fn load_chapters(dir: &PathBuf) -> Result<String, Error> {
+fn load_chapters(dir: &Path) -> Result<String, Error> {
     // Accept both "chapters" (preferred) and "kapitoly" (legacy Czech name)
     let chapters_dir = ["chapters", "kapitoly"]
         .iter()
@@ -89,7 +89,7 @@ fn load_chapters(dir: &PathBuf) -> Result<String, Error> {
     let mut files: Vec<PathBuf> = fs::read_dir(&chapters_dir)?
         .filter_map(|e| e.ok())
         .map(|e| e.path())
-        .filter(|p| p.extension().map_or(false, |e| e == "md"))
+        .filter(|p| p.extension().is_some_and(|e| e == "md"))
         .collect();
 
     files.sort();

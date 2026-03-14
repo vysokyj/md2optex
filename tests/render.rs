@@ -188,7 +188,7 @@ fn escape_hash_in_text() {
 
 #[test]
 fn typo_ellipsis() {
-    assert!(body("wait...").contains(r"wait\dots"));
+    assert!(body("wait...").contains(r"wait\dots{}"));
 }
 
 #[test]

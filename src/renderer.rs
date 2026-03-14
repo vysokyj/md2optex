@@ -44,25 +44,25 @@ fn build_preamble(metadata: Option<&Metadata>, hyphenation: &[String]) -> Result
     s.push_str("\\def\\begcitation{\\par\\medskip\\leftskip=2em\\rightskip=2em\\noindent}\n");
     s.push_str("\\def\\endcitation{\\par\\leftskip=0em\\rightskip=0em\\medskip}\n");
 
-    if let Some(meta) = metadata {
-        if let Some(ts) = &meta.typesetting {
-            if let Some(font) = &ts.font {
-                s.push_str(&format!("\\fontfam[{}]\n", font));
-            }
-            if let Some(size) = &ts.base_size {
-                // e.g. "11pt" → \typosize[11/13]
-                let pt: u32 = size.trim_end_matches("pt").parse().unwrap_or(10);
-                let leading = pt * 13 / 10;
-                s.push_str(&format!("\\typosize[{pt}/{leading}]\n"));
-            }
-            if let Some(left) = ts.margin_left {
-                s.push_str(&format!(
-                    "\\margins/1 a4 ({left}mm,{},{},{}mm)\n",
-                    ts.margin_right.unwrap_or(25),
-                    ts.margin_top.unwrap_or(30),
-                    ts.margin_bottom.unwrap_or(30),
-                ));
-            }
+    if let Some(meta) = metadata
+        && let Some(ts) = &meta.typesetting
+    {
+        if let Some(font) = &ts.font {
+            s.push_str(&format!("\\fontfam[{}]\n", font));
+        }
+        if let Some(size) = &ts.base_size {
+            // e.g. "11pt" → \typosize[11/13]
+            let pt: u32 = size.trim_end_matches("pt").parse().unwrap_or(10);
+            let leading = pt * 13 / 10;
+            s.push_str(&format!("\\typosize[{pt}/{leading}]\n"));
+        }
+        if let Some(left) = ts.margin_left {
+            s.push_str(&format!(
+                "\\margins/1 a4 ({left}mm,{},{},{}mm)\n",
+                ts.margin_right.unwrap_or(25),
+                ts.margin_top.unwrap_or(30),
+                ts.margin_bottom.unwrap_or(30),
+            ));
         }
     }
 
@@ -76,17 +76,17 @@ fn build_preamble(metadata: Option<&Metadata>, hyphenation: &[String]) -> Result
 
     s.push('\n');
 
-    if let Some(meta) = metadata {
-        if let Some(book) = &meta.book {
-            if let Some(title) = &book.title {
-                s.push_str(&format!("\\tit {title}\n"));
-            }
-            if let Some(author) = &book.author {
-                s.push_str(&format!("\\author {author}\n"));
-            }
-            if book.title.is_some() || book.author.is_some() {
-                s.push_str("\\maketitle\n");
-            }
+    if let Some(meta) = metadata
+        && let Some(book) = &meta.book
+    {
+        if let Some(title) = &book.title {
+            s.push_str(&format!("\\tit {title}\n"));
+        }
+        if let Some(author) = &book.author {
+            s.push_str(&format!("\\author {author}\n"));
+        }
+        if book.title.is_some() || book.author.is_some() {
+            s.push_str("\\maketitle\n");
         }
     }
 
@@ -159,7 +159,7 @@ impl Context {
                 out.push_str(&format!("{{\\tt {}}}", tex_escape(&t)));
             }
             Event::SoftBreak => out.push('\n'),
-            Event::HardBreak => out.push_str("\\\\\n"),
+            Event::HardBreak => out.push_str("\\hfil\\break\n"),
             Event::Rule      => out.push_str("\\noindent\\hrule\n\n"),
             Event::Html(_) | Event::InlineHtml(_) => {} // discarded
             _ => {}

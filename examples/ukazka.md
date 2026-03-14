@@ -16,6 +16,11 @@ Nástroj automaticky aplikuje české typografické pravidla.
 
 Uvozovky: "toto je v uvozovkách" a také „toto je již česky".
 
+Uvozovky se seznamem a pomlčkou:
+
+- „Poslouchej svůj hlas — vypadá to na odpor, ale je v něm touha."
+- „Druhá položka s pomlčkou — taky funguje."
+
 Pomlčka odděluje části věty -- například takto. Nebo pomocí em-dash --- takhle.
 
 Jednopísmenné předložky: v lese, z kopce, s kamarádem, k domovu, u řeky.
@@ -65,10 +70,14 @@ $ ./target/release/md2opmac vstup.md -o vystup.tex
 
 ## Citace
 
-> Toto je citovaný text. Může se rozkládat
-> na více řádků a obsahovat *formátování*.
->
-> Druhý odstavec citace.
+> „Filozofie je příprava na smrt," napsal Platón.
+> Přijmi ji, i když se ti zdá teoretická.
+
+> „Kdo se bojí, nesmí do lesa," říká staré přísloví.
+> Ale „odvaha není absence strachu -- je to rozhodnutí,
+> že něco jiného je důležitější než strach."
+
+> Druhý odstavec citace obsahuje *formátování* a `kód`.
 
 ## Horizontální linka
 

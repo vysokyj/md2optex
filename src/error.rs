@@ -8,6 +8,7 @@ pub enum Error {
     TomlParse(toml::de::Error),
     MissingChaptersDir(PathBuf),
     HyphenationDict(PathBuf, io::Error),
+    #[allow(dead_code)] // reserved for future style-system implementation
     StyleNotFound(String),
 }
 
