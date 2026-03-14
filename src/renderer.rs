@@ -2,6 +2,7 @@ use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, HeadingLevel, Alignmen
 
 use crate::error::Error;
 use crate::metadata::Metadata;
+use crate::styles;
 use crate::typo;
 
 pub fn render(
@@ -9,9 +10,10 @@ pub fn render(
     metadata: Option<&Metadata>,
     hyphenation: &[String],
     dpi: u32,
+    style: Option<&str>,
 ) -> Result<String, Error> {
     let mut out = String::new();
-    out.push_str(&build_preamble(metadata, hyphenation)?);
+    out.push_str(&build_preamble(metadata, hyphenation, style)?);
     out.push_str(&render_body(markdown, dpi));
     out.push_str("\n\\bye\n");
     Ok(out)
@@ -34,7 +36,11 @@ pub fn render_body(markdown: &str, dpi: u32) -> String {
     out
 }
 
-fn build_preamble(metadata: Option<&Metadata>, hyphenation: &[String]) -> Result<String, Error> {
+fn build_preamble(
+    metadata: Option<&Metadata>,
+    hyphenation: &[String],
+    style: Option<&str>,
+) -> Result<String, Error> {
     let mut s = String::new();
 
     // OpTeX is a LuaTeX format — no \input optex needed, it is pre-loaded by the engine.
@@ -44,6 +50,20 @@ fn build_preamble(metadata: Option<&Metadata>, hyphenation: &[String]) -> Result
     s.push_str("\\def\\begcitation{\\par\\medskip\\leftskip=2em\\rightskip=2em\\noindent}\n");
     s.push_str("\\def\\endcitation{\\par\\leftskip=0em\\rightskip=0em\\medskip}\n");
 
+    // Resolve and inject style: CLI --style takes priority over metadata [styl].
+    let style_name = style.or_else(|| {
+        metadata
+            .and_then(|m| m.style.as_ref())
+            .and_then(|st| st.name.as_deref())
+    });
+    if let Some(name) = style_name {
+        match styles::resolve(name, None) {
+            Some(content) => s.push_str(&content),
+            None => eprintln!("md2optex: warning: style '{name}' not found, using defaults"),
+        }
+    }
+
+    // Metadata overrides: applied after the style so they take precedence.
     if let Some(meta) = metadata
         && let Some(ts) = &meta.typesetting
     {
@@ -56,12 +76,21 @@ fn build_preamble(metadata: Option<&Metadata>, hyphenation: &[String]) -> Result
             let leading = pt * 13 / 10;
             s.push_str(&format!("\\typosize[{pt}/{leading}]\n"));
         }
-        if let Some(left) = ts.margin_left {
+        // Emit \margins whenever paper size or any margin is specified in metadata.
+        // This lets `papir = "b5"` work without requiring explicit margin values.
+        let has_paper = ts.paper.is_some();
+        let has_margins = ts.margin_left.is_some()
+            || ts.margin_right.is_some()
+            || ts.margin_top.is_some()
+            || ts.margin_bottom.is_some();
+        if has_paper || has_margins {
+            let paper = ts.paper.as_deref().unwrap_or("a4");
+            let left = ts.margin_left.unwrap_or(25);
+            let right = ts.margin_right.unwrap_or(25);
+            let top = ts.margin_top.unwrap_or(30);
+            let bottom = ts.margin_bottom.unwrap_or(30);
             s.push_str(&format!(
-                "\\margins/1 a4 ({left}mm,{},{},{}mm)\n",
-                ts.margin_right.unwrap_or(25),
-                ts.margin_top.unwrap_or(30),
-                ts.margin_bottom.unwrap_or(30),
+                "\\margins/1 {paper} ({left}mm,{right}mm,{top}mm,{bottom}mm)\n"
             ));
         }
     }

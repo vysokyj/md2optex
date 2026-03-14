@@ -1,6 +1,7 @@
 mod error;
 mod metadata;
 mod renderer;
+mod styles;
 mod typo;
 
 use std::fs;
@@ -29,6 +30,10 @@ struct Args {
     /// Image resolution in DPI used to compute physical dimensions
     #[arg(long, default_value_t = 96)]
     dpi: u32,
+
+    /// Built-in or custom style name (minimal | kniha | odborny | manual, or a path)
+    #[arg(long)]
+    style: Option<String>,
 }
 
 fn main() {
@@ -43,7 +48,13 @@ fn run() -> Result<(), Error> {
 
     let (markdown, metadata) = load_input(&args)?;
     let hyphenation = load_hyphenation(&args, metadata.as_ref())?;
-    let tex = renderer::render(&markdown, metadata.as_ref(), &hyphenation, args.dpi)?;
+    let tex = renderer::render(
+        &markdown,
+        metadata.as_ref(),
+        &hyphenation,
+        args.dpi,
+        args.style.as_deref(),
+    )?;
 
     match &args.output {
         Some(path) => fs::write(path, tex)?,

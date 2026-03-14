@@ -10,6 +10,8 @@ CLI nástroj v Rustu, který převádí Markdown na TeX s makry OpTeX (OpTeX).
 
 - Jazyk kódu: Rust (edition 2021)
 - **Zdrojový kód kompletně anglicky** — komentáře, doc-stringy, názvy proměnných, chybové zprávy, vše
+- **Konfigurace (`metadata.toml`) kompletně anglicky** — klíče, sekce i názvy šablon jsou anglicky
+- **Názvy vestavěných šablon anglicky**: `minimal`, `book`, `academic`, `manual`
 - Knihovny: preferuj standardní crates (clap pro CLI, pulldown-cmark pro parsování MD)
 - Testy: unit testy v příslušném modulu (`#[cfg(test)]`), integrační testy v `tests/`
 - Formátování: `rustfmt` (výchozí konfigurace)
@@ -149,35 +151,35 @@ Kapitoly se zpracují v abecedním/číselném pořadí názvů souborů. Konver
 ### metadata.toml
 
 ```toml
-[kniha]
-nazev   = "Název knihy"
-autor   = "Jméno Příjmení"
-rok     = 2026
-isbn    = "978-80-000-0000-0"   # volitelné
+[book]
+title  = "Book Title"
+author = "First Last"
+year   = 2026
+isbn   = "978-80-000-0000-0"   # optional
 
-[sazba]
-papir        = "a4"             # a4 | b5 | a5
-font         = "palatino"       # název fontu pro \fontfam
-zakladni_vel = "11pt"           # základní velikost písma
-odstavec     = "indent"         # indent | noindent (první odstavec po nadpisu)
+[typesetting]
+paper     = "a4"        # a4 | b5 | a5 | letter
+font      = "Pagella"   # font family name for \fontfam
+base_size = "11pt"      # base font size
+paragraph = "indent"    # indent | noindent (first paragraph after heading)
 
-# okraje v mm (volitelné, jinak OpTeX výchozí)
-okraj_vlevo  = 35
-okraj_vpravo = 25
-okraj_nahore = 30
-okraj_dole   = 30
+# margins in mm (optional; defaults applied when paper is set)
+margin_left   = 35
+margin_right  = 25
+margin_top    = 30
+margin_bottom = 30
 
-# záhlaví a zápatí (volitelné)
-zahlaví      = "{autor} & {nazev_kapitoly} &"   # levý & střed & pravý
-zapati       = "& \\folio &"
+# running headers / footers (optional)
+header = "{author} & {chapter} &"   # left & centre & right
+footer = "& \\folio &"
 
-[cesty]
-obrazky      = "obrazky"        # adresář s obrázky (relativně k metadata.toml)
-hyphenation  = "hyphenation.txt" # volitelné, přebije --hyphenation-dict
+[paths]
+images      = "images"           # image directory (relative to metadata.toml)
+hyphenation = "hyphenation.txt"  # optional, overrides --hyphenation-dict
 
-[styl]
-styl = "kniha"                  # název vestavěného stylu nebo uživatelského (viz níže)
-# styl = "./styles/muj-styl.tex"  # explicitní cesta
+[style]
+name = "book"   # built-in: minimal | book | academic | manual
+                # or a path: "./styles/my-style.tex"
 ```
 
 ### Styly
@@ -191,12 +193,12 @@ Styl je TeX snippet (`\input`ovaný za preambulí) který může předefinovat O
 
 **Vestavěné styly:**
 
-| Název      | Popis                                                        |
+| Name       | Description                                                  |
 |------------|--------------------------------------------------------------|
-| `kniha`    | beletrie – patičkový font, symetrické okraje, živá záhlaví  |
-| `odborny`  | odborná publikace – širší vnější okraj pro poznámky          |
-| `manual`   | technická dokumentace – výraznější bloky kódu, sans-serif    |
-| `minimal`  | holé OpTeX výchozí hodnoty bez úprav                         |
+| `minimal`  | A4 defaults, no further customisation                        |
+| `book`     | fiction / prose — Pagella, B5, symmetric margins, folio      |
+| `academic` | academic publication — Termes, A4, wider outer margin        |
+| `manual`   | technical docs — Heros sans-serif, A4, smaller verbatim      |
 
 Výchozí styl pokud není nic uvedeno: `minimal`.
 
@@ -278,7 +280,7 @@ Pokud soubor nelze přečíst, konvertor skončí s chybou (ne tichým fallbacke
 
 #### Medium priority
 - [ ] **Nested single quotes** — `‚vnitřní'` (U+201A / U+2018) → `\uv{vnitřní}` for nested quotes
-- [ ] **`papir` setting** — paper size from metadata (`a4`/`b5`/`a5`) passed to `\margins`
+- [x] **`papir` setting** — paper size from metadata (`a4`/`b5`/`a5`) passed to `\margins`; works standalone without explicit margin values
 - [ ] **`odstavec` setting** — `indent`/`noindent` → `\parindent=0pt` or OpTeX default after headings
 - [ ] **`zahlaví` / `zapati`** — running headers/footers from metadata → `\headline` / `\footline`
 - [ ] **Strikethrough** — `~~text~~` is parsed (ENABLE_STRIKETHROUGH) but silently dropped;

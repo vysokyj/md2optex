@@ -74,8 +74,7 @@ $ ./target/release/md2opmac vstup.md -o vystup.tex
 > Přijmi ji, i když se ti zdá teoretická.
 
 > „Kdo se bojí, nesmí do lesa," říká staré přísloví.
-> Ale „odvaha není absence strachu -- je to rozhodnutí,
-> že něco jiného je důležitější než strach."
+> Ale „odvaha není absence strachu -- je to rozhodnutí, že něco jiného je důležitější než strach."
 
 > Druhý odstavec citace obsahuje *formátování* a `kód`.
 
