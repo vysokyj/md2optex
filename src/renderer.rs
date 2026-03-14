@@ -111,6 +111,7 @@ struct Context {
     dpi: u32,
     list_depth: u32,
     in_code_block: bool,
+    in_image: bool,
     in_table_head: bool,
     col_alignments: Vec<Alignment>,
     col_index: usize,
@@ -123,6 +124,7 @@ impl Context {
             dpi,
             list_depth: 0,
             in_code_block: false,
+            in_image: false,
             in_table_head: false,
             col_alignments: vec![],
             col_index: 0,
@@ -135,7 +137,9 @@ impl Context {
             Event::Start(tag) => self.start_tag(tag, out),
             Event::End(tag)   => self.end_tag(tag, out),
             Event::Text(t)    => {
-                if self.in_code_block {
+                if self.in_image {
+                    // alt text zahazujeme
+                } else if self.in_code_block {
                     out.push_str(&t);
                 } else {
                     let escaped = tex_escape(&t);
@@ -181,9 +185,9 @@ impl Context {
                 out.push_str(&format!("\\ulink[{}]{{", dest_url));
             }
             Tag::Image { dest_url, .. } => {
+                self.in_image = true;
                 let width = measure_image(&dest_url, self.dpi);
                 out.push_str(&format!("\\picw={width} \\inspic {dest_url}\n"));
-                // alt text zahazujeme – OPmac ho nevyužije
             }
             Tag::Table(alignments) => {
                 self.col_alignments = alignments;
@@ -225,7 +229,9 @@ impl Context {
             TagEnd::Item => out.push('\n'),
             TagEnd::BlockQuote(_) => out.push_str("\\endcitation\n\n"),
             TagEnd::Link => out.push('}'),
-            TagEnd::Image => {}
+            TagEnd::Image => {
+                self.in_image = false;
+            }
             TagEnd::TableHead => {
                 self.in_table_head = false;
                 out.push_str(" \\cr\n\\hline\n");

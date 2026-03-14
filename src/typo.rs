@@ -20,24 +20,35 @@ fn fix_dashes(s: &str) -> String {
     s
 }
 
-/// Převede ASCII uvozovky na \uv{}.
-/// Jednoduché párování: první `"` v páru je otevírací, druhá zavírací.
+/// Převede ASCII i české uvozovky na \uv{}.
+/// ASCII `"`: první je otevírací, druhá zavírací.
+/// Unicode „ (U+201E) → otevírací, " (U+201C) → zavírací.
 fn fix_quotes(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut open = false;
-    let mut chars = s.chars().peekable();
 
-    while let Some(c) = chars.next() {
-        if c == '"' {
-            if !open {
+    for c in s.chars() {
+        match c {
+            '"' => {
+                if !open {
+                    result.push_str(r"\uv{");
+                    open = true;
+                } else {
+                    result.push('}');
+                    open = false;
+                }
+            }
+            '\u{201E}' => {
+                // „ – česká otevírací uvozovka
                 result.push_str(r"\uv{");
                 open = true;
-            } else {
+            }
+            '\u{201C}' => {
+                // " – česká zavírací uvozovka
                 result.push('}');
                 open = false;
             }
-        } else {
-            result.push(c);
+            _ => result.push(c),
         }
     }
     // Nezavřená uvozovka – nech jak je (neměla by nastat)
