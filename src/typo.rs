@@ -12,11 +12,22 @@ fn fix_ellipsis(s: &str) -> String {
     s.replace("...", r"\dots")
 }
 
-/// Inserts a non-breaking tilde before en-dash (`--`) and em-dash (`---`)
+/// Normalises dashes and inserts a non-breaking tilde before them
 /// so they cannot be left at the end of a line.
+///
+/// Both ASCII sequences (` -- `, ` --- `) and Unicode characters
+/// (U+2013 en-dash, U+2014 em-dash) are accepted as input.
+/// When surrounded by spaces the leading space becomes `~`.
+/// Bare Unicode dashes (no surrounding spaces) are replaced without spacing.
 fn fix_dashes(s: &str) -> String {
+    // Spaced variants first — both ASCII and Unicode, with non-breaking space
+    let s = s.replace(" \u{2014} ", "~--- "); // " — " → ~---
+    let s = s.replace(" \u{2013} ", "~-- ");  // " – " → ~--
     let s = s.replace(" --- ", "~--- ");
     let s = s.replace(" -- ", "~-- ");
+    // Bare Unicode dashes (no surrounding spaces)
+    let s = s.replace('\u{2014}', "---");      // — → ---
+    let s = s.replace('\u{2013}', "--");       // – → --
     s
 }
 
@@ -114,6 +125,12 @@ mod tests {
     fn test_dashes() {
         assert_eq!(fix_dashes("foo -- bar"), "foo~-- bar");
         assert_eq!(fix_dashes("foo --- bar"), "foo~--- bar");
+        // Unicode en-dash and em-dash with spaces
+        assert_eq!(fix_dashes("foo \u{2013} bar"), "foo~-- bar");
+        assert_eq!(fix_dashes("foo \u{2014} bar"), "foo~--- bar");
+        // Bare Unicode dashes (no surrounding spaces)
+        assert_eq!(fix_dashes("foo\u{2013}bar"), "foo--bar");
+        assert_eq!(fix_dashes("foo\u{2014}bar"), "foo---bar");
     }
 
     #[test]

@@ -273,7 +273,7 @@ Pokud soubor nelze přečíst, konvertor skončí s chybou (ne tichým fallbacke
   1. `./styles/<name>.tex` (relative to metadata.toml)
   2. `~/.config/md2optex/styles/<name>.tex`
   3. Built-in embedded styles: `kniha`, `odborny`, `manual`, `minimal`
-- [ ] **Unicode dash passthrough** — `–` (U+2013) and `—` (U+2014) in source text should be
+- [x] **Unicode dash passthrough** — `–` (U+2013) and `—` (U+2014) in source text should be
   converted to `--` / `---` (currently only ` -- ` / ` --- ` ASCII sequences are handled)
 
 #### Medium priority
