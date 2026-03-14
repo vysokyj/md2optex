@@ -35,7 +35,10 @@ fn build_preamble(metadata: Option<&Metadata>, hyphenation: &[String]) -> Result
     let mut s = String::new();
 
     s.push_str("\\input opmac\n");
-    s.push_str("\\language\\czech\n");
+    s.push_str("\\chyph\n"); // české dělení slov (csplain)
+    // Definice maker pro citace (nejsou součástí OPmac)
+    s.push_str("\\def\\begcitation{\\par\\medskip\\leftskip=2em\\rightskip=2em\\noindent}\n");
+    s.push_str("\\def\\endcitation{\\par\\leftskip=0em\\rightskip=0em\\medskip}\n");
 
     if let Some(meta) = metadata {
         if let Some(sazba) = &meta.sazba {
@@ -98,9 +101,9 @@ fn tex_escape(s: &str) -> String {
             '_'  => out.push_str(r"\_"),
             '{'  => out.push_str(r"\{"),
             '}'  => out.push_str(r"\}"),
-            '~'  => out.push_str(r"\textasciitilde{}"),
-            '^'  => out.push_str(r"\textasciicircum{}"),
-            '\\' => out.push_str(r"\textbackslash{}"),
+            '~'  => out.push_str(r"\char126 "),
+            '^'  => out.push_str(r"\char94 "),
+            '\\' => out.push_str(r"\char92 "),
             c    => out.push(c),
         }
     }
@@ -194,7 +197,7 @@ impl Context {
                 self.col_index = 0;
                 self.row_count = 0;
                 let spec: String = self.col_alignments.iter().map(alignment_char).collect();
-                out.push_str(&format!("\\table{{{spec}}}{{\n\\hline\n"));
+                out.push_str(&format!("\\table{{{spec}}}{{\n"));
             }
             Tag::TableHead => {
                 self.in_table_head = true;
@@ -234,7 +237,7 @@ impl Context {
             }
             TagEnd::TableHead => {
                 self.in_table_head = false;
-                out.push_str(" \\cr\n\\hline\n");
+                out.push_str(" \\crli\n"); // linka pod záhlavím
             }
             TagEnd::TableRow => {
                 out.push_str(" \\cr\n");
@@ -243,7 +246,7 @@ impl Context {
                 self.col_index += 1;
             }
             TagEnd::Table => {
-                out.push_str("\\hline\n}\n\n");
+                out.push_str("}\n\n");
             }
             _ => {}
         }

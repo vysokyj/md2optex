@@ -126,7 +126,7 @@ Generovaný TeX soubor začíná:
 
 ```tex
 \input opmac
-\language\czech   % české dělení slov
+\chyph   % české dělení slov (csplain)
 ```
 
 ## Struktura projektu knihy
