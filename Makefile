@@ -38,7 +38,7 @@ tex: build
 
 # Vygeneruje TeX a přeloží ho do PDF pomocí OpTeX
 pdf: tex
-	cd $(BUILDDIR) && luacsplain -interaction=nonstopmode ukazka.tex
+	cd $(BUILDDIR) && pdfcsplain -interaction=nonstopmode ukazka.tex
 	@echo "Výstup: $(BUILDDIR)/ukazka.pdf"
 
 # Otevře PDF v prohlížeči (xdg-open)

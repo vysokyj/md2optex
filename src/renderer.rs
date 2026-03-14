@@ -34,8 +34,8 @@ pub fn render(
 fn build_preamble(metadata: Option<&Metadata>, hyphenation: &[String]) -> Result<String, Error> {
     let mut s = String::new();
 
+    s.push_str("\\chyph\n"); // české dělení slov – musí být před \input opmac
     s.push_str("\\input opmac\n");
-    s.push_str("\\chyph\n"); // české dělení slov (csplain)
     // Definice maker pro citace (nejsou součástí OPmac)
     s.push_str("\\def\\begcitation{\\par\\medskip\\leftskip=2em\\rightskip=2em\\noindent}\n");
     s.push_str("\\def\\endcitation{\\par\\leftskip=0em\\rightskip=0em\\medskip}\n");

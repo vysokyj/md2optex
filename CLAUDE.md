@@ -125,8 +125,8 @@ Tato transformace se aplikuje pouze na textové uzly (ne uvnitř `\tt`, URL, atd
 Generovaný TeX soubor začíná:
 
 ```tex
+\chyph
 \input opmac
-\chyph   % české dělení slov (csplain)
 ```
 
 ## Struktura projektu knihy
