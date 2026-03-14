@@ -30,18 +30,22 @@ install: release
 uninstall:
 	rm -f $(DESTDIR)/$(BINARY)
 
-# Vygeneruje TeX z ukázkového MD souboru do build/
-tex: build
+# Generate TeX from the example Markdown file into build/
+tex:
+	RUSTFLAGS="-A warnings" cargo build --quiet
 	mkdir -p $(BUILDDIR)
 	./target/debug/$(BINARY) $(EXAMPLE) -o $(BUILDDIR)/ukazka.tex
-	@echo "Výstup: $(BUILDDIR)/ukazka.tex"
+	@echo "Output: $(BUILDDIR)/ukazka.tex"
 
-# Vygeneruje TeX a přeloží ho do PDF pomocí OpTeX
+# Generate TeX and compile to PDF with OpTeX (silent; log in build/ukazka.log)
 pdf: tex
-	cd $(BUILDDIR) && optex -interaction=nonstopmode ukazka.tex
-	@echo "Výstup: $(BUILDDIR)/ukazka.pdf"
+	cd $(BUILDDIR) && optex -interaction=batchmode ukazka.tex >ukazka.stdout 2>&1 \
+		|| { echo "OpTeX failed — see $(BUILDDIR)/ukazka.log:"; \
+		     grep "^!" $(BUILDDIR)/ukazka.log || cat $(BUILDDIR)/ukazka.log; \
+		     exit 1; }
+	@echo "Output: $(BUILDDIR)/ukazka.pdf"
 
-# Otevře PDF v prohlížeči (xdg-open)
+# Open PDF in the default viewer
 preview: pdf
 	xdg-open $(BUILDDIR)/ukazka.pdf
 
