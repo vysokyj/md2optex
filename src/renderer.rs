@@ -660,15 +660,10 @@ fn alignment_char(a: &Alignment) -> char {
     }
 }
 
-/// Returns the caption body if `text` starts with a recognised table-caption prefix
-/// (`Tab.:`, `Tabulka:`, or `Table:`), otherwise `None`.
+/// Returns the caption body if `text` starts with Pandoc-style caption prefix (`: `),
+/// otherwise `None`.
 fn strip_caption_prefix(text: &str) -> Option<&str> {
-    for prefix in &["Tab.:", "Tabulka:", "Table:"] {
-        if let Some(rest) = text.strip_prefix(prefix) {
-            return Some(rest.trim());
-        }
-    }
-    None
+    text.strip_prefix(':').map(|rest| rest.trim())
 }
 
 fn measure_image(path: &Path, dpi: u32) -> String {

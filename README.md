@@ -214,14 +214,14 @@ Knižní sazba beletrie nebo prózy. B5, Pagella (Palatino), oboustranné symetr
 Akademické publikace, články, eseje. A4, Termes (Times New Roman), o něco širší vnější okraj pro poznámky nebo vazbu. Číslované nadpisy (výchozí OpTeX). Živá záhlaví: sudá strana — folio + jméno autora, lichá strana — název dokumentu + folio. Automatické číslované popisky:
 
 - **Obrázky** — popisek z alt textu: `![Popisek obrázku](soubor.png)` → `\caption/f Popisek obrázku`
-- **Tabulky** — odstavec hned za tabulkou začínající `Tab.:` nebo `Tabulka:` se stane popiskem (`\caption/t`):
+- **Tabulky** — odstavec hned za tabulkou začínající `: ` (Pandoc konvence) se stane popiskem (`\caption/t`):
 
 ```md
 | Metoda | Přesnost |
 |--------|----------|
 | A      | 98 %     |
 
-Tab.: Srovnání metod
+: Srovnání metod
 ```
 
 Vhodný pro seminární práce, výzkumné zprávy, sborníky.

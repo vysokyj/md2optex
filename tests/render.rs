@@ -316,18 +316,18 @@ fn body_captions(md: &str) -> String {
 }
 
 #[test]
-fn table_caption_tab_prefix() {
-    let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\nTab.: Výsledky\n";
+fn table_caption_pandoc_style() {
+    let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\n: Výsledky měření\n";
     let out = body_captions(md);
-    assert!(out.contains(r"\caption/t Výsledky"), "expected \\caption/t, got: {out}");
-    assert!(!out.contains("Tab.:"), "prefix should be stripped, got: {out}");
+    assert!(out.contains(r"\caption/t Výsledky měření"), "expected \\caption/t, got: {out}");
+    assert!(!out.contains(": Výsledky"), "colon prefix should be stripped, got: {out}");
 }
 
 #[test]
-fn table_caption_tabulka_prefix() {
-    let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\nTabulka: Přehled\n";
+fn table_caption_colon_only() {
+    let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\n:Přehled bez mezery\n";
     let out = body_captions(md);
-    assert!(out.contains(r"\caption/t Přehled"), "got: {out}");
+    assert!(out.contains(r"\caption/t Přehled bez mezery"), "got: {out}");
 }
 
 #[test]
@@ -340,7 +340,7 @@ fn table_caption_no_prefix_emits_paragraph() {
 
 #[test]
 fn table_caption_not_emitted_without_captions_mode() {
-    let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\nTab.: Výsledky\n";
+    let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\n: Výsledky\n";
     let out = body(md);
     assert!(!out.contains(r"\caption/t"), "caption should not appear without captions mode, got: {out}");
 }
