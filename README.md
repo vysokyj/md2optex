@@ -211,7 +211,7 @@ Knižní sazba beletrie nebo prózy. B5, Pagella (Palatino), oboustranné symetr
 
 #### `academic`
 
-Akademické publikace, články, eseje. A4, Termes (Times New Roman), o něco širší vnější okraj pro poznámky nebo vazbu. Číslované nadpisy (výchozí OpTeX). Živá záhlaví: sudá strana — folio + jméno autora, lichá strana — název dokumentu + folio. Vhodný pro seminární práce, výzkumné zprávy, sborníky.
+Akademické publikace, články, eseje. A4, Termes (Times New Roman), o něco širší vnější okraj pro poznámky nebo vazbu. Číslované nadpisy (výchozí OpTeX). Živá záhlaví: sudá strana — folio + jméno autora, lichá strana — název dokumentu + folio. Automatické číslované popisky obrázků (`\caption/f`) — použij alt text obrázku jako popisek: `![Popisek obrázku](soubor.png)`. Vhodný pro seminární práce, výzkumné zprávy, sborníky.
 
 #### `manual`
 

@@ -77,7 +77,8 @@ pub fn render(
         .and_then(|m| m.paths.as_ref())
         .and_then(|p| p.images.as_deref())
         .and_then(|rel| base_dir.map(|b| b.join(rel)));
-    out.push_str(&render_body_impl(markdown, dpi, base_dir, images_dir.as_deref(), nonum, toc_depth));
+    let captions = style_name == Some("academic");
+    out.push_str(&render_body_impl(markdown, dpi, base_dir, images_dir.as_deref(), nonum, toc_depth, captions));
     if toc_placement == Some(TocPlacement::Back) {
         out.push_str(&toc_block(TocPlacement::Back));
     }
@@ -93,10 +94,10 @@ pub fn render(
 /// Renders only the document body (no preamble, no `\bye`).
 /// Used by integration tests; uses neutral defaults (no nonum, unlimited TOC depth).
 pub fn render_body(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>) -> String {
-    render_body_impl(markdown, dpi, base_dir, images_dir, false, u32::MAX)
+    render_body_impl(markdown, dpi, base_dir, images_dir, false, u32::MAX, false)
 }
 
-fn render_body_impl(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>, nonum: bool, toc_depth: u32) -> String {
+fn render_body_impl(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>, nonum: bool, toc_depth: u32, captions: bool) -> String {
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH
         | Options::ENABLE_TASKLISTS
@@ -104,7 +105,7 @@ fn render_body_impl(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_di
 
     let footnotes = collect_footnotes(markdown, opts);
     let parser = Parser::new_ext(markdown, opts);
-    let mut ctx = Context::new(dpi, base_dir, images_dir, nonum, toc_depth, footnotes);
+    let mut ctx = Context::new(dpi, base_dir, images_dir, nonum, toc_depth, captions, footnotes);
     let mut out = String::new();
 
     for event in parser {
@@ -376,10 +377,13 @@ struct Context {
     images_dir: Option<PathBuf>,
     nonum: bool,
     toc_depth: u32,
+    /// Emit \caption/f{alt} after each image that has non-empty alt text.
+    captions: bool,
     footnotes: HashMap<String, String>,
     list_depth: u32,
     in_code_block: bool,
     in_image: bool,
+    image_alt: String,
     in_footnote_def: bool,
     in_table_head: bool,
     col_alignments: Vec<Alignment>,
@@ -388,17 +392,19 @@ struct Context {
 }
 
 impl Context {
-    fn new(dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>, nonum: bool, toc_depth: u32, footnotes: HashMap<String, String>) -> Self {
+    fn new(dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>, nonum: bool, toc_depth: u32, captions: bool, footnotes: HashMap<String, String>) -> Self {
         Self {
             dpi,
             base_dir: base_dir.map(|p| p.to_path_buf()),
             images_dir: images_dir.map(|p| p.to_path_buf()),
             nonum,
             toc_depth,
+            captions,
             footnotes,
             list_depth: 0,
             in_code_block: false,
             in_image: false,
+            image_alt: String::new(),
             in_footnote_def: false,
             in_table_head: false,
             col_alignments: vec![],
@@ -441,7 +447,7 @@ impl Context {
             Event::End(tag)   => self.end_tag(tag, out),
             Event::Text(t)    => {
                 if self.in_image {
-                    // alt text is discarded — OpTeX does not use it
+                    self.image_alt.push_str(&t);
                 } else if self.in_code_block {
                     out.push_str(&t);
                 } else {
@@ -502,6 +508,7 @@ impl Context {
             }
             Tag::Image { dest_url, .. } => {
                 self.in_image = true;
+                self.image_alt.clear();
                 let resolved = self.resolve_image_path(&dest_url);
                 let width = measure_image(&resolved, self.dpi);
                 out.push_str(&format!("\\picw={width} \\inspic {}\n", resolved.display()));
@@ -555,6 +562,12 @@ impl Context {
             TagEnd::Link => out.push('}'),
             TagEnd::Image => {
                 self.in_image = false;
+                if self.captions && !self.image_alt.is_empty() {
+                    let alt = std::mem::take(&mut self.image_alt);
+                    out.push_str(&format!("\\caption/f {alt}\n"));
+                } else {
+                    self.image_alt.clear();
+                }
             }
             TagEnd::TableHead => {
                 self.in_table_head = false;
