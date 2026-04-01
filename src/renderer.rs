@@ -61,13 +61,21 @@ pub fn render(
         .and_then(|b| b.toc.as_ref());
     let toc_placement = resolve_toc(toc, style_name);
 
+    // nonum: suppress heading numbers (book style convention)
+    let nonum = style_name == Some("book");
+    // toc_depth: max heading level included in TOC (book default = 1, others = no limit)
+    let toc_depth = metadata
+        .and_then(|m| m.typesetting.as_ref())
+        .and_then(|t| t.toc_depth)
+        .unwrap_or(if nonum { 1 } else { u32::MAX });
+
     let mut out = String::new();
     out.push_str(&build_preamble(metadata, hyphenation, style, toc_placement)?);
     let images_dir = metadata
         .and_then(|m| m.paths.as_ref())
         .and_then(|p| p.images.as_deref())
         .and_then(|rel| base_dir.map(|b| b.join(rel)));
-    out.push_str(&render_body(markdown, dpi, base_dir, images_dir.as_deref()));
+    out.push_str(&render_body_impl(markdown, dpi, base_dir, images_dir.as_deref(), nonum, toc_depth));
     if toc_placement == Some(TocPlacement::Back) {
         out.push_str(&toc_block(TocPlacement::Back));
     }
@@ -76,8 +84,12 @@ pub fn render(
 }
 
 /// Renders only the document body (no preamble, no `\bye`).
-/// Used by integration tests to check markup in isolation.
+/// Used by integration tests; uses neutral defaults (no nonum, unlimited TOC depth).
 pub fn render_body(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>) -> String {
+    render_body_impl(markdown, dpi, base_dir, images_dir, false, u32::MAX)
+}
+
+fn render_body_impl(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>, nonum: bool, toc_depth: u32) -> String {
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH
         | Options::ENABLE_TASKLISTS
@@ -85,7 +97,7 @@ pub fn render_body(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_dir
 
     let footnotes = collect_footnotes(markdown, opts);
     let parser = Parser::new_ext(markdown, opts);
-    let mut ctx = Context::new(dpi, base_dir, images_dir, footnotes);
+    let mut ctx = Context::new(dpi, base_dir, images_dir, nonum, toc_depth, footnotes);
     let mut out = String::new();
 
     for event in parser {
@@ -309,6 +321,8 @@ struct Context {
     dpi: u32,
     base_dir: Option<PathBuf>,
     images_dir: Option<PathBuf>,
+    nonum: bool,
+    toc_depth: u32,
     footnotes: HashMap<String, String>,
     list_depth: u32,
     in_code_block: bool,
@@ -321,11 +335,13 @@ struct Context {
 }
 
 impl Context {
-    fn new(dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>, footnotes: HashMap<String, String>) -> Self {
+    fn new(dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>, nonum: bool, toc_depth: u32, footnotes: HashMap<String, String>) -> Self {
         Self {
             dpi,
             base_dir: base_dir.map(|p| p.to_path_buf()),
             images_dir: images_dir.map(|p| p.to_path_buf()),
+            nonum,
+            toc_depth,
             footnotes,
             list_depth: 0,
             in_code_block: false,
@@ -404,7 +420,11 @@ impl Context {
         match tag {
             Tag::Heading { level, .. } => {
                 let cmd = heading_cmd(level);
-                out.push_str(&format!("\n{cmd} "));
+                let depth = heading_depth(level);
+                out.push('\n');
+                if self.nonum { out.push_str("\\nonum "); }
+                if depth > self.toc_depth { out.push_str("\\notoc "); }
+                out.push_str(&format!("{cmd} "));
             }
             Tag::Paragraph => {}
             Tag::Strong => out.push_str("{\\bf "),
@@ -503,6 +523,15 @@ fn heading_cmd(level: HeadingLevel) -> &'static str {
         HeadingLevel::H2 => "\\sec",
         HeadingLevel::H3 => "\\secc",
         _                => "\\seccc",
+    }
+}
+
+fn heading_depth(level: HeadingLevel) -> u32 {
+    match level {
+        HeadingLevel::H1 => 1,
+        HeadingLevel::H2 => 2,
+        HeadingLevel::H3 => 3,
+        _                => 4,
     }
 }
 

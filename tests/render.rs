@@ -300,3 +300,11 @@ fn task_list_checked() {
 fn task_list_unchecked() {
     assert!(body("- [ ] todo").contains(r"[\ ]\ "));
 }
+
+// ── Heading nonum / notoc ────────────────────────────────────────────────────
+
+#[test]
+fn heading_default_no_nonum() {
+    // Without book style, headings have no \nonum prefix
+    assert!(!body("# Nadpis").contains("\\nonum"));
+}

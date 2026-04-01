@@ -159,6 +159,7 @@ margin_top    = 30
 margin_bottom = 30
 header = "{author} & {title} & {folio}"  # záhlaví: levá & střed & pravá část
 footer = "& \folio &"                    # zápatí: levá & střed & pravá část
+toc_depth = 1    # hloubka obsahu: 1 = jen kapitoly, 2 = + sekce (výchozí pro book = 1, jinak = vše)
 
 [paths]
 images      = "images"           # adresář s obrázky (relativně k metadata.toml)
@@ -198,7 +199,7 @@ Pokud jsou v `[book]` vyplněna pole `year`, `author` nebo `isbn`, vygeneruje se
 | Název | Popis |
 |---|---|
 | `minimal` | A4, výchozí písmo LM, jednoduché zápatí s číslem stránky |
-| `book` | B5, oboustranné okraje, Pagella, záhlaví prázdné, zápatí s foliem |
+| `book` | B5, oboustranné okraje, Pagella; nadpisy bez čísel, obsah jen kapitoly (`toc_depth=1`) |
 | `academic` | A4, Termes, širší vnější okraj |
 | `manual` | A4, Heros (bezpatkové), menší verbatim |
 

@@ -45,6 +45,8 @@ pub struct Typesetting {
     pub margin_bottom: Option<u32>,
     pub header: Option<String>,
     pub footer: Option<String>,
+    /// Maximum heading depth included in the table of contents (1 = chapters only).
+    pub toc_depth: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
