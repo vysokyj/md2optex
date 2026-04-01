@@ -9,6 +9,10 @@
 \frenchspacing
 \emergencystretch=3em
 
+% Empty defaults so the headline works even without book metadata.
+\gdef\thetitle{}
+\gdef\theauthor{}
+
 % Running headers: even pages — folio + book title; odd pages — chapter title + folio.
 % Footer empty (folio moved to header). Front-matter pages override locally via \bgroup.
 \headline={\ifodd\pageno
