@@ -583,12 +583,14 @@ impl Context {
                 self.col_alignments = alignments;
                 self.col_index = 0;
                 self.row_count = 0;
-                let spec: String = self.col_alignments.iter().map(alignment_char).collect();
+                let n = self.col_alignments.len().max(1);
+                // Use p{dim} columns so cell text wraps instead of overflowing.
+                // Each column gets an equal share of \hsize; \dimexpr is evaluated at TeX time.
+                let col = format!("p{{\\dimexpr\\hsize/{n}\\relax}}");
+                let spec: String = std::iter::repeat(col).take(n).collect::<Vec<_>>().join(" ");
                 // \par\medskip ensures vertical spacing before the table.
-                // \noindent\hfil...\hfil centres narrow tables; for wide tables the glue
-                // simply compresses to zero so there is no overflow.
                 // \noalign{\hrule\smallskip} adds the top rule (three-line / booktabs style).
-                out.push_str(&format!("\\par\\medskip\\noindent\\hfil\n\\table{{{spec}}}{{\\noalign{{\\hrule\\smallskip}}\n"));
+                out.push_str(&format!("\\par\\medskip\\noindent\n\\table{{{spec}}}{{\\noalign{{\\hrule\\smallskip}}\n"));
             }
             Tag::TableHead => {
                 self.in_table_head = true;
@@ -601,6 +603,13 @@ impl Context {
             Tag::TableCell => {
                 if self.col_index > 0 {
                     out.push_str(" & ");
+                }
+                // In p{} columns text wraps as a paragraph (left-aligned by default).
+                // Add \hfil prefix/suffix to restore center/right alignment within the cell.
+                match self.col_alignments.get(self.col_index) {
+                    Some(Alignment::Center) => out.push_str("\\hfil "),
+                    Some(Alignment::Right)  => out.push_str("\\hfill "),
+                    _ => {}
                 }
             }
             Tag::Superscript => out.push_str("\\tsuper{"),
@@ -675,12 +684,16 @@ impl Context {
                 out.push_str(" \\cr\n");
             }
             TagEnd::TableCell => {
+                match self.col_alignments.get(self.col_index) {
+                    Some(Alignment::Center) => out.push_str(" \\hfil"),
+                    _ => {}
+                }
                 self.col_index += 1;
             }
             TagEnd::Table => {
                 // \noalign{\smallskip\hrule} adds the bottom rule; closing \hfil\par\medskip
                 // finishes the centred paragraph and adds trailing vertical space.
-                out.push_str("\\noalign{\\smallskip\\hrule}\n}\\hfil\\par\\medskip\n\n");
+                out.push_str("\\noalign{\\smallskip\\hrule}\n}\\par\\medskip\n\n");
                 if self.captions {
                     self.after_table = true;
                 }
@@ -708,14 +721,6 @@ fn heading_depth(level: HeadingLevel) -> u32 {
     }
 }
 
-fn alignment_char(a: &Alignment) -> char {
-    match a {
-        Alignment::Left   => 'l',
-        Alignment::Center => 'c',
-        Alignment::Right  => 'r',
-        Alignment::None   => 'l',
-    }
-}
 
 /// Returns the caption body if `text` starts with Pandoc-style caption prefix (`: `),
 /// otherwise `None`.

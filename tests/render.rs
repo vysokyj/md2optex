@@ -162,7 +162,17 @@ fn image_with_images_dir_resolves_via_images_dir() {
 fn table_alignment_spec() {
     let md = "| L | C | R |\n|:--|:-:|--:|\n| a | b | c |";
     let out = body(md);
-    assert!(out.contains("\\table{lcr}{"));
+    // Three wrapping columns: each gets \hsize/3.
+    assert!(out.contains("\\table{p{\\dimexpr\\hsize/3\\relax} p{\\dimexpr\\hsize/3\\relax} p{\\dimexpr\\hsize/3\\relax}}{"), "got: {out}");
+}
+
+#[test]
+fn table_center_alignment_hfil() {
+    let md = "| L | C | R |\n|:--|:-:|--:|\n| a | b | c |";
+    let out = body(md);
+    // Center column: \hfil prefix + suffix; right column: \hfill prefix only.
+    assert!(out.contains("\\hfil b \\hfil"), "got: {out}");
+    assert!(out.contains("\\hfill c"), "got: {out}");
 }
 
 #[test]
