@@ -97,6 +97,11 @@ pub fn render_body(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_dir
     render_body_impl(markdown, dpi, base_dir, images_dir, false, u32::MAX, false)
 }
 
+/// Like `render_body` but with captions enabled (academic style convention).
+pub fn render_body_captions(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>) -> String {
+    render_body_impl(markdown, dpi, base_dir, images_dir, false, u32::MAX, true)
+}
+
 fn render_body_impl(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>, nonum: bool, toc_depth: u32, captions: bool) -> String {
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH
@@ -377,7 +382,7 @@ struct Context {
     images_dir: Option<PathBuf>,
     nonum: bool,
     toc_depth: u32,
-    /// Emit \caption/f{alt} after each image that has non-empty alt text.
+    /// Emit \caption/f{alt} after images and \caption/t after tables (academic style).
     captions: bool,
     footnotes: HashMap<String, String>,
     list_depth: u32,
@@ -389,6 +394,14 @@ struct Context {
     col_alignments: Vec<Alignment>,
     col_index: usize,
     row_count: usize,
+    /// Set after a table ends (captions mode only); cleared by the next paragraph start.
+    after_table: bool,
+    /// True while buffering a potential table-caption paragraph.
+    caption_para: bool,
+    /// Byte offset in `out` where the current caption paragraph started.
+    caption_start: usize,
+    /// Raw text collected in the current caption paragraph (for prefix detection).
+    caption_text: String,
 }
 
 impl Context {
@@ -410,6 +423,10 @@ impl Context {
             col_alignments: vec![],
             col_index: 0,
             row_count: 0,
+            after_table: false,
+            caption_para: false,
+            caption_start: 0,
+            caption_text: String::new(),
         }
     }
 
@@ -451,6 +468,9 @@ impl Context {
                 } else if self.in_code_block {
                     out.push_str(&t);
                 } else {
+                    if self.caption_para {
+                        self.caption_text.push_str(&t);
+                    }
                     let escaped = tex_escape(&t);
                     let processed = typo::apply(&escaped);
                     out.push_str(&processed);
@@ -485,7 +505,14 @@ impl Context {
                 if depth > self.toc_depth { out.push_str("\\notoc "); }
                 out.push_str(&format!("{cmd} "));
             }
-            Tag::Paragraph => {}
+            Tag::Paragraph => {
+                if self.captions && self.after_table {
+                    self.caption_para = true;
+                    self.caption_start = out.len();
+                    self.caption_text.clear();
+                }
+                self.after_table = false;
+            }
             Tag::Strong => out.push_str("{\\bf "),
             Tag::Emphasis => out.push_str("{\\it "),
             Tag::Strikethrough => out.push_str("\\strike{"),
@@ -547,7 +574,21 @@ impl Context {
     fn end_tag(&mut self, tag: TagEnd, out: &mut String) {
         match tag {
             TagEnd::Heading(_) => out.push('\n'),
-            TagEnd::Paragraph => out.push_str("\n\n"),
+            TagEnd::Paragraph => {
+                if self.caption_para {
+                    self.caption_para = false;
+                    let text = std::mem::take(&mut self.caption_text);
+                    if let Some(body) = strip_caption_prefix(text.trim()) {
+                        // Replace the buffered paragraph TeX with \caption/t.
+                        out.truncate(self.caption_start);
+                        out.push_str(&format!("\\caption/t {body}\n"));
+                    } else {
+                        out.push_str("\n\n");
+                    }
+                } else {
+                    out.push_str("\n\n");
+                }
+            }
             TagEnd::Strong | TagEnd::Emphasis | TagEnd::Strikethrough => out.push('}'),
             TagEnd::CodeBlock => {
                 self.in_code_block = false;
@@ -583,6 +624,9 @@ impl Context {
                 // \noalign{\smallskip\hrule} adds the bottom rule; closing \hfil\par\medskip
                 // finishes the centred paragraph and adds trailing vertical space.
                 out.push_str("\\noalign{\\smallskip\\hrule}\n}\\hfil\\par\\medskip\n\n");
+                if self.captions {
+                    self.after_table = true;
+                }
             }
             _ => {}
         }
@@ -614,6 +658,17 @@ fn alignment_char(a: &Alignment) -> char {
         Alignment::Right  => 'r',
         Alignment::None   => 'l',
     }
+}
+
+/// Returns the caption body if `text` starts with a recognised table-caption prefix
+/// (`Tab.:`, `Tabulka:`, or `Table:`), otherwise `None`.
+fn strip_caption_prefix(text: &str) -> Option<&str> {
+    for prefix in &["Tab.:", "Tabulka:", "Table:"] {
+        if let Some(rest) = text.strip_prefix(prefix) {
+            return Some(rest.trim());
+        }
+    }
+    None
 }
 
 fn measure_image(path: &Path, dpi: u32) -> String {

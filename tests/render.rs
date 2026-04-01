@@ -1,4 +1,4 @@
-use md2optex::renderer::render_body;
+use md2optex::renderer::{render_body, render_body_captions};
 
 // Convenience: strip leading/trailing whitespace from every line and
 // drop blank lines so that tests are not sensitive to exact spacing.
@@ -307,4 +307,40 @@ fn task_list_unchecked() {
 fn heading_default_no_nonum() {
     // Without book style, headings have no \nonum prefix
     assert!(!body("# Nadpis").contains("\\nonum"));
+}
+
+// ── Table captions (academic/captions mode) ──────────────────────────────────
+
+fn body_captions(md: &str) -> String {
+    normalise(&render_body_captions(md, 96, None, None))
+}
+
+#[test]
+fn table_caption_tab_prefix() {
+    let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\nTab.: Výsledky\n";
+    let out = body_captions(md);
+    assert!(out.contains(r"\caption/t Výsledky"), "expected \\caption/t, got: {out}");
+    assert!(!out.contains("Tab.:"), "prefix should be stripped, got: {out}");
+}
+
+#[test]
+fn table_caption_tabulka_prefix() {
+    let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\nTabulka: Přehled\n";
+    let out = body_captions(md);
+    assert!(out.contains(r"\caption/t Přehled"), "got: {out}");
+}
+
+#[test]
+fn table_caption_no_prefix_emits_paragraph() {
+    let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\nNormální text.\n";
+    let out = body_captions(md);
+    assert!(!out.contains(r"\caption/t"), "should not emit caption, got: {out}");
+    assert!(out.contains("Normální text."), "paragraph should be present, got: {out}");
+}
+
+#[test]
+fn table_caption_not_emitted_without_captions_mode() {
+    let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\nTab.: Výsledky\n";
+    let out = body(md);
+    assert!(!out.contains(r"\caption/t"), "caption should not appear without captions mode, got: {out}");
 }
