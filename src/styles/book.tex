@@ -8,11 +8,13 @@
 \headline={}
 \footline={\hss\folio\hss}
 
-% Chapter: page break, centred title, no "Chapter N" prefix
+% Chapter: page break, centred title, no "Chapter N" prefix.
+% \_printrefnum[@] has no visible output when \nonum is active, but
+% it still writes the TOC entry and hyperlink anchor to the .ref file.
 \_def\_printchap #1{\_vfill\_supereject \_prevdepth=0pt
    \_vglue3\_bigskipamount
    {\_chapfont \_leftskip=0pt plus1fill \_rightskip=\_leftskip
-    \_noindent #1\_nbpar}\_mark{}%
+    \_noindent \_printrefnum[@]#1\_nbpar}\_mark{}%
    \_nobreak \_belowtitle{\_bigskip}%
    \_firstnoindent
 }
@@ -20,7 +22,7 @@
 % Section: no number, left-aligned bold
 \_def\_printsec#1{\_par
    \_abovetitle{\_penalty-151}\_bigskip
-   {\_secfont \_noindent \_raggedright #1\_nbpar}\_insertmark{#1}%
+   {\_secfont \_noindent \_raggedright \_printrefnum[@\_quad]#1\_nbpar}\_insertmark{#1}%
    \_nobreak \_belowtitle{\_medskip}%
    \_firstnoindent
 }
@@ -28,7 +30,7 @@
 % Subsection: no number, smaller bold
 \_def\_printsecc#1{\_par
    \_abovetitle{\_penalty-101}{\_medskip\_smallskip}
-   {\_seccfont \_noindent \_raggedright #1\_nbpar}%
+   {\_seccfont \_noindent \_raggedright \_printrefnum[@\_quad]#1\_nbpar}%
    \_nobreak \_belowtitle{\_medskip}%
    \_firstnoindent
 }
