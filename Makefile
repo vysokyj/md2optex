@@ -1,5 +1,5 @@
 BINARY      = md2optex
-EXAMPLE     ?= examples/ukazka.md
+EXAMPLE     ?= examples/sample.md
 BOOK_SAMPLE  = examples/book-sample
 BUILDDIR     = target/examples
 STYLES       = minimal book academic manual
@@ -38,18 +38,18 @@ examples:
 	@for style in $(STYLES); do \
 		echo "--- $$style ---"; \
 		./target/debug/$(BINARY) --style $$style $(EXAMPLE) \
-			-o $(CURDIR)/$(BUILDDIR)/ukazka-$$style.tex; \
+			-o $(CURDIR)/$(BUILDDIR)/sample-$$style.tex; \
 		cd $(CURDIR)/$(BUILDDIR) && \
-		optex -interaction=batchmode ukazka-$$style.tex \
-			>ukazka-$$style.stdout 2>&1 \
+		optex -interaction=batchmode sample-$$style.tex \
+			>sample-$$style.stdout 2>&1 \
 		|| { echo "OpTeX failed for style $$style:"; \
-		     grep "^!" ukazka-$$style.log || cat ukazka-$$style.log; \
+		     grep "^!" sample-$$style.log || cat sample-$$style.log; \
 		     cd $(CURDIR); exit 1; }; \
 		cd $(CURDIR); \
-		echo "Output: $(BUILDDIR)/ukazka-$$style.pdf"; \
+		echo "Output: $(BUILDDIR)/sample-$$style.pdf"; \
 	done
 	@echo "Done — PDFs in $(BUILDDIR)/:"
-	@ls $(BUILDDIR)/ukazka-*.pdf
+	@ls $(BUILDDIR)/sample-*.pdf
 
 book-sample:
 	RUSTFLAGS="-A warnings" cargo build --quiet

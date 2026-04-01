@@ -175,8 +175,8 @@ make clean    # smaže build artefakty i složku build/
 Výstup se generuje do složky `build/` (ta je v `.gitignore` a lze ji kdykoli smazat).
 
 ```bash
-make tex      # MD → TeX  (build/ukazka.tex)
-make pdf      # MD → TeX → PDF  (build/ukazka.pdf), vyžaduje optex
+make tex      # MD → TeX  (build/sample.tex)
+make pdf      # MD → TeX → PDF  (build/sample.pdf), vyžaduje optex
 make preview  # totéž + otevře PDF v prohlížeči
 ```
 
