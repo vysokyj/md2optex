@@ -120,6 +120,9 @@ fn build_preamble(
         if book.title.is_some() || book.author.is_some() {
             s.push_str("\\maketitle\n");
         }
+        if book.toc == Some(true) {
+            s.push_str("\\maketoc\n");
+        }
     }
 
     s.push('\n');

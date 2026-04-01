@@ -1,0 +1,13 @@
+[book]
+title  = "Ukázková kniha"
+author = "Jiří Vysoký"
+year   = 2026
+toc    = true
+
+[typesetting]
+paper     = "a4"
+font      = "Pagella"
+base_size = "11pt"
+
+[style]
+name = "minimal"
