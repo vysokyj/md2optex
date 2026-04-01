@@ -198,7 +198,7 @@ fn build_preamble(
             s.push_str("\\maketitle\n");
         }
         if book.toc == Some(true) {
-            s.push_str("\\notoc\\nonum\\chap Obsah\n\\maketoc\n");
+            s.push_str("\\vfil\\supereject\\centerline{\\typosize[14/17]\\bf Obsah}\\bigskip\n\\maketoc\n");
         }
     }
 
