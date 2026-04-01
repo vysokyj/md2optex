@@ -1,6 +1,22 @@
-% odborny — academic / non-fiction publication
-% Termes (Times-like), A4, wider outer margin for margin notes, folio in footer.
+% academic — academic publications, articles, essays
+% Termes (Times-like), A4, wider outer margin for binding or notes.
 \fontfam[Termes]
 \typosize[11/13]
 \margins/2 a4 (30,45,25,25)mm
-\footline={\hss\folio\hss}
+
+% Czech typographic text composition
+\widowpenalty=10000  \clubpenalty=10000
+\frenchspacing
+\emergencystretch=3em
+
+% Running headers: even pages — folio + author; odd pages — title + folio.
+% Footer empty (folio moved to header).
+% Empty defaults so the headline works even without book metadata.
+\gdef\thetitle{}
+\gdef\theauthor{}
+\headline={\ifodd\pageno
+  {\it\thetitle}\hfil\folio
+\else
+  \folio\hfil{\it\theauthor}%
+\fi}
+\footline={}
