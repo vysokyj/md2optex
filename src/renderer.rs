@@ -201,6 +201,7 @@ fn build_preamble(
                 || book.year.is_some()
                 || book.isbn.is_some();
             if has_colophon {
+                s.push_str("\\bgroup\\footline={}\\headline={}\n");
                 s.push_str("\\null\\vfil\n");
                 if let Some(cr) = &book.copyright {
                     s.push_str(&format!("\\noindent {cr}\\par\n"));
@@ -211,8 +212,9 @@ fn build_preamble(
                     s.push_str(&format!("\\noindent ISBN: {isbn}\\par\n"));
                 }
                 s.push_str("\\vfil\\eject\n");
+                s.push_str("\\egroup\n");
             } else {
-                s.push_str("\\null\\vfil\\eject\n");
+                s.push_str("\\bgroup\\footline={}\\headline={}\\null\\vfil\\eject\\egroup\n");
             }
         }
         if book.toc == Some(true) {
