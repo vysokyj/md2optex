@@ -254,3 +254,20 @@ fn typo_nbsp_preposition() {
 fn typo_nbsp_conjunction() {
     assert!(body("Jan a Marie").contains("a~Marie"));
 }
+
+// ── Footnotes ────────────────────────────────────────────────────────────────
+
+#[test]
+fn footnote_inline() {
+    let md = "Text[^1] here.\n\n[^1]: The footnote text.\n";
+    assert!(body(md).contains(r"\fnote{The footnote text.}"));
+}
+
+#[test]
+fn footnote_reference_replaced() {
+    let md = "See[^note] this.\n\n[^note]: Explanation here.\n";
+    let out = body(md);
+    // Reference is replaced by \fnote, definition block is not emitted
+    assert!(out.contains(r"\fnote{Explanation here.}"));
+    assert!(!out.contains("note]"));
+}

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, HeadingLevel, Alignment};
@@ -27,16 +28,62 @@ pub fn render(
 pub fn render_body(markdown: &str, dpi: u32, base_dir: Option<&Path>) -> String {
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH
-        | Options::ENABLE_TASKLISTS;
+        | Options::ENABLE_TASKLISTS
+        | Options::ENABLE_FOOTNOTES;
 
+    let footnotes = collect_footnotes(markdown, opts);
     let parser = Parser::new_ext(markdown, opts);
-    let mut ctx = Context::new(dpi, base_dir);
+    let mut ctx = Context::new(dpi, base_dir, footnotes);
     let mut out = String::new();
 
     for event in parser {
         ctx.handle_event(event, &mut out);
     }
     out
+}
+
+/// Pre-scans markdown and returns a map of footnote label → rendered TeX body.
+fn collect_footnotes(markdown: &str, opts: Options) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    let mut current_label: Option<String> = None;
+    let mut current_body = String::new();
+    let mut depth = 0usize;
+
+    for event in Parser::new_ext(markdown, opts) {
+        match event {
+            Event::Start(Tag::FootnoteDefinition(label)) => {
+                current_label = Some(label.to_string());
+                current_body.clear();
+                depth = 0;
+            }
+            Event::End(TagEnd::FootnoteDefinition) => {
+                if let Some(label) = current_label.take() {
+                    // Strip trailing whitespace/newlines added by paragraph end
+                    map.insert(label, current_body.trim_end().to_owned());
+                }
+            }
+            // Collect the text content inside the footnote definition.
+            // We ignore nested block structure (paragraphs, lists) and render
+            // inline content only — sufficient for typical footnote usage.
+            _ if current_label.is_some() => {
+                match &event {
+                    Event::Start(_) => depth += 1,
+                    Event::End(_)   => { if depth > 0 { depth -= 1; } }
+                    Event::Text(t)  => {
+                        let escaped = tex_escape(t);
+                        let processed = typo::apply(&escaped);
+                        current_body.push_str(&processed);
+                    }
+                    Event::Code(t)     => current_body.push_str(&format!("{{\\tt {}}}", tex_escape(t))),
+                    Event::SoftBreak   => current_body.push(' '),
+                    Event::HardBreak   => current_body.push(' '),
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+    map
 }
 
 fn build_preamble(
@@ -156,9 +203,11 @@ fn tex_escape(s: &str) -> String {
 struct Context {
     dpi: u32,
     base_dir: Option<PathBuf>,
+    footnotes: HashMap<String, String>,
     list_depth: u32,
     in_code_block: bool,
     in_image: bool,
+    in_footnote_def: bool,
     in_table_head: bool,
     col_alignments: Vec<Alignment>,
     col_index: usize,
@@ -166,13 +215,15 @@ struct Context {
 }
 
 impl Context {
-    fn new(dpi: u32, base_dir: Option<&Path>) -> Self {
+    fn new(dpi: u32, base_dir: Option<&Path>, footnotes: HashMap<String, String>) -> Self {
         Self {
             dpi,
             base_dir: base_dir.map(|p| p.to_path_buf()),
+            footnotes,
             list_depth: 0,
             in_code_block: false,
             in_image: false,
+            in_footnote_def: false,
             in_table_head: false,
             col_alignments: vec![],
             col_index: 0,
@@ -196,6 +247,13 @@ impl Context {
     }
 
     fn handle_event(&mut self, event: Event, out: &mut String) {
+        // Footnote definitions are collected in a pre-scan; skip them during rendering.
+        if self.in_footnote_def {
+            if let Event::End(TagEnd::FootnoteDefinition) = event {
+                self.in_footnote_def = false;
+            }
+            return;
+        }
         match event {
             Event::Start(tag) => self.start_tag(tag, out),
             Event::End(tag)   => self.end_tag(tag, out),
@@ -212,6 +270,11 @@ impl Context {
             }
             Event::Code(t) => {
                 out.push_str(&format!("{{\\tt {}}}", tex_escape(&t)));
+            }
+            Event::FootnoteReference(label) => {
+                let body = self.footnotes.get(label.as_ref()).cloned()
+                    .unwrap_or_else(|| format!("?{label}"));
+                out.push_str(&format!("\\fnote{{{body}}}"));
             }
             Event::SoftBreak => out.push('\n'),
             Event::HardBreak => out.push_str("\\hfil\\break\n"),
@@ -272,6 +335,9 @@ impl Context {
                 if self.col_index > 0 {
                     out.push_str(" & ");
                 }
+            }
+            Tag::FootnoteDefinition(_) => {
+                self.in_footnote_def = true;
             }
             _ => {}
         }
