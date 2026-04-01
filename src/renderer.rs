@@ -198,7 +198,7 @@ fn build_preamble(
             s.push_str("\\maketitle\n");
         }
         if book.toc == Some(true) {
-            s.push_str("\\maketoc\n");
+            s.push_str("\\notoc\\nonum\\chap Obsah\n\\maketoc\n");
         }
     }
 
