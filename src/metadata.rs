@@ -66,4 +66,47 @@ impl Metadata {
         let meta: Metadata = toml::from_str(&content)?;
         Ok(meta)
     }
+
+    /// Parses a flat YAML front matter block (`key: value` pairs) into Metadata.
+    /// Supports: title, author, date/year, isbn, style.
+    pub fn from_yaml_str(yaml: &str) -> Self {
+        let mut title = None;
+        let mut author = None;
+        let mut year: Option<u32> = None;
+        let mut isbn = None;
+        let mut style_name = None;
+
+        for raw_line in yaml.lines() {
+            let line = raw_line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if let Some((key, val)) = line.split_once(':') {
+                let key = key.trim();
+                let val = val.trim().trim_matches('"').trim_matches('\'');
+                match key {
+                    "title"         => title      = Some(val.to_string()),
+                    "author"        => author     = Some(val.to_string()),
+                    "year" | "date" => year       = val.split('-').next()
+                                            .and_then(|y| y.trim().parse().ok()),
+                    "isbn"          => isbn       = Some(val.to_string()),
+                    "style"         => style_name = Some(val.to_string()),
+                    _               => {}
+                }
+            }
+        }
+
+        let has_book = title.is_some() || author.is_some()
+            || year.is_some() || isbn.is_some();
+        Metadata {
+            book: if has_book {
+                Some(Book { title, author, year, isbn, toc: None, copyright: None })
+            } else {
+                None
+            },
+            typesetting: None,
+            paths: None,
+            style: style_name.map(|name| Style { name: Some(name) }),
+        }
+    }
 }

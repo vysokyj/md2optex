@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, HeadingLevel, Alignment};
+use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, HeadingLevel, Alignment, CodeBlockKind};
 
 use crate::error::Error;
 use crate::metadata::{Metadata, TocValue};
@@ -51,6 +51,25 @@ pub fn render(
     style: Option<&str>,
     base_dir: Option<&Path>,
 ) -> Result<String, Error> {
+    // Extract YAML front matter when no external metadata is provided (single-file mode).
+    let yaml_meta_owned: Option<Metadata>;
+    let effective_markdown: &str;
+    let effective_metadata: Option<&Metadata>;
+
+    if metadata.is_none() {
+        let (ym, rest) = extract_yaml_front_matter(markdown);
+        yaml_meta_owned = ym;
+        effective_markdown = rest;
+        effective_metadata = yaml_meta_owned.as_ref();
+    } else {
+        yaml_meta_owned = None;
+        effective_markdown = markdown;
+        effective_metadata = metadata;
+    }
+
+    let metadata = effective_metadata;
+    let markdown = effective_markdown;
+
     let style_name = style.or_else(|| {
         metadata
             .and_then(|m| m.style.as_ref())
@@ -106,7 +125,11 @@ fn render_body_impl(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_di
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH
         | Options::ENABLE_TASKLISTS
-        | Options::ENABLE_FOOTNOTES;
+        | Options::ENABLE_FOOTNOTES
+        | Options::ENABLE_MATH
+        | Options::ENABLE_SUPERSCRIPT
+        | Options::ENABLE_SUBSCRIPT
+        | Options::ENABLE_DEFINITION_LIST;
 
     let footnotes = collect_footnotes(markdown, opts);
     let parser = Parser::new_ext(markdown, opts);
@@ -243,6 +266,9 @@ fn build_preamble(
     s.push_str("\\def\\maketitle{\\bgroup\\footline={}\\headline={}\\vglue0pt plus1fill\\centerline{{\\typosize[18/22]\\bf\\thetitle}}\\medskip\\centerline{{\\it\\theauthor}}\\vglue0pt plus2fill\\eject\\egroup}\n");
     // \strike is not built into OpTeX; draw a mid-height rule over the text.
     s.push_str("\\def\\strike#1{\\leavevmode\\setbox0=\\hbox{#1}\\hbox{\\copy0\\kern-\\wd0\\vrule height0.55em depth-0.45em width\\wd0}}\n");
+    // \tsuper / \tsub: text-mode superscript / subscript via math mode with roman font.
+    s.push_str("\\def\\tsuper#1{$^{\\rm #1}$}\n");
+    s.push_str("\\def\\tsub#1{$_{\\rm #1}$}\n");
 
     // Resolve and inject style: CLI --style takes priority over metadata [styl].
     let style_name = style.or_else(|| {
@@ -394,6 +420,8 @@ struct Context {
     col_alignments: Vec<Alignment>,
     col_index: usize,
     row_count: usize,
+    /// True while inside a raw TeX code block (lang `tex`, `=tex`, `optex`).
+    in_raw_tex: bool,
     /// Set after a table ends (captions mode only); cleared by the next paragraph start.
     after_table: bool,
     /// True while buffering a potential table-caption paragraph.
@@ -423,6 +451,7 @@ impl Context {
             col_alignments: vec![],
             col_index: 0,
             row_count: 0,
+            in_raw_tex: false,
             after_table: false,
             caption_para: false,
             caption_start: 0,
@@ -465,7 +494,7 @@ impl Context {
             Event::Text(t)    => {
                 if self.in_image {
                     self.image_alt.push_str(&t);
-                } else if self.in_code_block {
+                } else if self.in_raw_tex || self.in_code_block {
                     out.push_str(&t);
                 } else {
                     if self.caption_para {
@@ -475,6 +504,14 @@ impl Context {
                     let processed = typo::apply(&escaped);
                     out.push_str(&processed);
                 }
+            }
+            Event::InlineMath(s) => {
+                // Pass math content through verbatim — OpTeX handles $...$ natively.
+                out.push_str(&format!("${s}$"));
+            }
+            Event::DisplayMath(s) => {
+                // Display math: $$...$$ on its own lines.
+                out.push_str(&format!("\n$${}$$\n\n", s.trim()));
             }
             Event::Code(t) => {
                 out.push_str(&format!("{{\\tt {}}}", tex_escape(&t)));
@@ -516,6 +553,11 @@ impl Context {
             Tag::Strong => out.push_str("{\\bf "),
             Tag::Emphasis => out.push_str("{\\it "),
             Tag::Strikethrough => out.push_str("\\strike{"),
+            Tag::CodeBlock(CodeBlockKind::Fenced(ref lang))
+                if matches!(lang.trim(), "tex" | "=tex" | "optex" | "=optex") =>
+            {
+                self.in_raw_tex = true;
+            }
             Tag::CodeBlock(_) => {
                 self.in_code_block = true;
                 out.push_str("\\begtt\n");
@@ -564,6 +606,11 @@ impl Context {
                     out.push_str(" & ");
                 }
             }
+            Tag::Superscript => out.push_str("\\tsuper{"),
+            Tag::Subscript   => out.push_str("\\tsub{"),
+            Tag::DefinitionList => out.push_str("\\par\\medskip\n"),
+            Tag::DefinitionListTitle => out.push_str("\\noindent{\\bf "),
+            Tag::DefinitionListDefinition => out.push_str("\\advance\\leftskip by 2em\\noindent "),
             Tag::FootnoteDefinition(_) => {
                 self.in_footnote_def = true;
             }
@@ -591,8 +638,12 @@ impl Context {
             }
             TagEnd::Strong | TagEnd::Emphasis | TagEnd::Strikethrough => out.push('}'),
             TagEnd::CodeBlock => {
-                self.in_code_block = false;
-                out.push_str("\\endtt\n\n");
+                if self.in_raw_tex {
+                    self.in_raw_tex = false;
+                } else {
+                    self.in_code_block = false;
+                    out.push_str("\\endtt\n\n");
+                }
             }
             TagEnd::List(_) => {
                 self.list_depth -= 1;
@@ -601,6 +652,15 @@ impl Context {
             TagEnd::Item => out.push('\n'),
             TagEnd::BlockQuote(_) => out.push_str("\\endcitation\n\n"),
             TagEnd::Link => out.push('}'),
+            TagEnd::Superscript => out.push('}'),
+            TagEnd::Subscript   => out.push('}'),
+            TagEnd::DefinitionListTitle => {
+                out.push_str("}\\par\\nobreak\n");
+            }
+            TagEnd::DefinitionListDefinition => {
+                out.push_str("\\par\\advance\\leftskip by -2em\n");
+            }
+            TagEnd::DefinitionList => out.push_str("\\par\\medskip\n\n"),
             TagEnd::Image => {
                 self.in_image = false;
                 if self.captions && !self.image_alt.is_empty() {
@@ -664,6 +724,25 @@ fn alignment_char(a: &Alignment) -> char {
 /// otherwise `None`.
 fn strip_caption_prefix(text: &str) -> Option<&str> {
     text.strip_prefix(':').map(|rest| rest.trim())
+}
+
+/// Extracts and strips a YAML front matter block (`---\n…\n---\n`) from the start
+/// of `markdown`. Returns `(Some(Metadata), rest)` when found, otherwise `(None, markdown)`.
+fn extract_yaml_front_matter(markdown: &str) -> (Option<Metadata>, &str) {
+    if !markdown.starts_with("---\n") {
+        return (None, markdown);
+    }
+    let after_open = &markdown[4..]; // skip opening "---\n"
+    if let Some(close_pos) = after_open.find("\n---\n") {
+        let yaml = &after_open[..close_pos];
+        let rest = &after_open[close_pos + 5..]; // skip "\n---\n"
+        (Some(Metadata::from_yaml_str(yaml)), rest)
+    } else if after_open.ends_with("\n---") {
+        let yaml = &after_open[..after_open.len() - 4];
+        (Some(Metadata::from_yaml_str(yaml)), "")
+    } else {
+        (None, markdown)
+    }
 }
 
 fn measure_image(path: &Path, dpi: u32) -> String {

@@ -76,6 +76,11 @@ optex dokument.tex
 | `` `kód` `` | `{\tt kód}` |
 | `~~přeškrtnuté~~` | `\strike{přeškrtnuté}` |
 | Blok kódu (fenced) | `\begtt` … `\endtt` |
+| ` ```tex ` nebo ` ```optex ` | raw TeX passthrough (bez escapování) |
+| `$vzorec$` | `$vzorec$` (inline math, passthrough) |
+| `$$vzorec$$` | `$$vzorec$$` (display math, passthrough) |
+| `x ^2^` | `\tsuper{2}` (superscript, mezery nutné) |
+| `~2~` | `\tsub{2}` (subscript) |
 | Odstavec | prázdný řádek |
 | `[text](url)` | `\ulink[url]{text}` |
 | `![alt](src)` | `\picw=X.XXcm \inspic src` |
@@ -87,6 +92,7 @@ optex dokument.tex
 | `text[^1]` + `[^1]: pozn.` | `text\fnote{pozn.}` |
 | `- [x] hotovo` | `* [x] hotovo` (zaškrtnutý checkbox) |
 | `- [ ] todo` | `* [ ] todo` (prázdný checkbox) |
+| Definiční seznam | `{\bf Pojem}\par` + odsazená definice |
 
 ### Obrázky
 
@@ -134,6 +140,22 @@ kniha/
 ```
 
 Kapitoly jsou zpracovány v abecedním pořadí názvů souborů. `metadata.toml` je volitelný.
+
+## YAML front matter (jednosouborový režim)
+
+Pro jednoduché dokumenty bez `metadata.toml` lze metadata uvést přímo na začátku Markdown souboru ve formátu YAML front matter:
+
+```yaml
+---
+title: Název dokumentu
+author: Jméno Příjmení
+year: 2026
+isbn: 978-80-000-0000-0
+style: academic
+---
+```
+
+Podporovaná pole: `title`, `author`, `year` (nebo `date`), `isbn`, `style`. Automaticky se vygeneruje titulní strana a záhlaví — stejně jako s `metadata.toml`. V adresářovém režimu (s `metadata.toml`) se YAML front matter ignoruje.
 
 ## metadata.toml
 

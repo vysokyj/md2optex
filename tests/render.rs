@@ -344,3 +344,65 @@ fn table_caption_not_emitted_without_captions_mode() {
     let out = body(md);
     assert!(!out.contains(r"\caption/t"), "caption should not appear without captions mode, got: {out}");
 }
+
+// ── Math ─────────────────────────────────────────────────────────────────────
+
+#[test]
+fn inline_math() {
+    assert!(body("Platí $E = mc^2$ v praxi.").contains("$E = mc^2$"));
+}
+
+#[test]
+fn display_math() {
+    let out = body("$$\\int_0^\\infty e^{-x}\\,dx = 1$$");
+    assert!(out.contains("$$\\int_0^\\infty e^{-x}\\,dx = 1$$"));
+}
+
+// ── Raw TeX passthrough ───────────────────────────────────────────────────────
+
+#[test]
+fn raw_tex_block_passthrough() {
+    let md = "```tex\n\\vfil\\eject\n```\n";
+    let out = body(md);
+    assert!(out.contains("\\vfil\\eject"), "got: {out}");
+    assert!(!out.contains("\\begtt"), "should not wrap in begtt, got: {out}");
+}
+
+#[test]
+fn raw_optex_block_passthrough() {
+    let md = "```optex\n\\nonum\\chap Test\n```\n";
+    let out = body(md);
+    assert!(out.contains("\\nonum\\chap Test"), "got: {out}");
+}
+
+// ── Superscript / subscript ───────────────────────────────────────────────────
+
+#[test]
+fn superscript() {
+    // pulldown-cmark requires ^..^ to be space-delimited when adjacent to text
+    let out = body("x ^2^ test");
+    assert!(out.contains("\\tsuper{2}"), "got: {out}");
+}
+
+#[test]
+fn subscript() {
+    let out = body("~2~");
+    assert!(out.contains("\\tsub{2}"), "got: {out}");
+}
+
+// ── Definition lists ──────────────────────────────────────────────────────────
+
+#[test]
+fn definition_list_title_bold() {
+    let md = "Pojem\n: Definice pojmu\n";
+    let out = body(md);
+    assert!(out.contains("{\\bf Pojem}"), "got: {out}");
+}
+
+#[test]
+fn definition_list_indented_definition() {
+    let md = "Pojem\n: Definice pojmu\n";
+    let out = body(md);
+    assert!(out.contains("\\advance\\leftskip by 2em"), "got: {out}");
+    assert!(out.contains("\\advance\\leftskip by -2em"), "got: {out}");
+}
