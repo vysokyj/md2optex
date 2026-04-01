@@ -52,6 +52,9 @@ fn build_preamble(
     // \begcitation/\endcitation are not part of OpTeX; define them here.
     s.push_str("\\def\\begcitation{\\par\\medskip\\leftskip=2em\\rightskip=2em\\noindent}\n");
     s.push_str("\\def\\endcitation{\\par\\leftskip=0em\\rightskip=0em\\medskip}\n");
+    // \author and \maketitle are not built into OpTeX; define minimal versions.
+    s.push_str("\\def\\author#1{\\gdef\\theauthor{#1}}\n");
+    s.push_str("\\def\\maketitle{\\vskip\\medskipamount{\\it\\noindent\\theauthor\\par}\\bigskip}\n");
 
     // Resolve and inject style: CLI --style takes priority over metadata [styl].
     let style_name = style.or_else(|| {

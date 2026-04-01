@@ -1,9 +1,10 @@
-BINARY   = md2optex
-EXAMPLE  ?= examples/ukazka.md
-BUILDDIR  = target/examples
-STYLES    = minimal book academic manual
+BINARY      = md2optex
+EXAMPLE     ?= examples/ukazka.md
+BOOK_SAMPLE  = examples/book-sample
+BUILDDIR     = target/examples
+STYLES       = minimal book academic manual
 
-.PHONY: all build release install uninstall test check fmt lint clean examples
+.PHONY: all build release install uninstall test check fmt lint clean examples book-sample
 
 all: build
 
@@ -49,6 +50,15 @@ examples:
 	done
 	@echo "Done — PDFs in $(BUILDDIR)/:"
 	@ls $(BUILDDIR)/ukazka-*.pdf
+
+book-sample:
+	RUSTFLAGS="-A warnings" cargo build --quiet
+	mkdir -p $(BUILDDIR)
+	./target/debug/$(BINARY) $(BOOK_SAMPLE) -o $(CURDIR)/$(BUILDDIR)/book-sample.tex
+	cd $(CURDIR)/$(BUILDDIR) && \
+	optex -interaction=batchmode book-sample.tex >book-sample.stdout 2>&1 \
+	|| { echo "OpTeX failed:"; grep "^!" book-sample.log || cat book-sample.log; cd $(CURDIR); exit 1; }
+	@echo "Output: $(BUILDDIR)/book-sample.pdf"
 
 clean:
 	cargo clean
