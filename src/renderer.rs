@@ -256,7 +256,7 @@ fn build_preamble(
     s.push_str("\\uselanguage{czech}\n");
     // \begcitation/\endcitation are not part of OpTeX; define them here.
     s.push_str("\\def\\begcitation{\\par\\medskip\\leftskip=2em\\rightskip=2em\\noindent}\n");
-    s.push_str("\\def\\endcitation{\\par\\leftskip=0em\\rightskip=0em\\medskip}\n");
+    s.push_str("\\def\\endcitation{\\par\\leftskip=0em\\rightskip=0em\\medskip\\_firstnoindent}\n");
     // \maketitle is not built into OpTeX; define it here.
     // vertical fill, title (via \tit), author in italics, vertical fill, page break.
     s.push_str("\\def\\maketitle{\\bgroup\\footline={}\\headline={}\\vglue0pt plus1fill\\centerline{{\\typosize[18/22]\\bf\\thetitle}}\\medskip\\centerline{{\\it\\theauthor}}\\vglue0pt plus2fill\\eject\\egroup}\n");
