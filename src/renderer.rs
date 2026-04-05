@@ -134,6 +134,10 @@ fn render_body_impl(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_di
     for event in parser {
         ctx.handle_event(event, &mut out);
     }
+    // Merge consecutive blockquotes (separated only by blank lines) into one
+    // continuous block so the left rule spans the full dialogue/citation.
+    let out = out.replace("\\endcitation\n\n\\begcitation\n", "\n");
+    let out = out.replace("\\enddialogue\n\n\\begdialogue\n", "\n");
     out
 }
 
@@ -254,9 +258,12 @@ fn build_preamble(
     // OpTeX is a LuaTeX format — no \input optex needed, it is pre-loaded by the engine.
     s.push_str("\\fontfam[LM]\n"); // Latin Modern Unicode — required for Czech characters
     s.push_str("\\uselanguage{czech}\n");
-    // \begcitation/\endcitation are not part of OpTeX; define them here.
+    // \begcitation/\endcitation: regular blockquotes (non-dialogue).
+    // \begdialogue/\enddialogue: speaker-label dialogues (uses wider left indent for \citelabel llap).
     s.push_str("\\def\\begcitation{\\par\\medskip\\leftskip=2em\\rightskip=2em\\noindent}\n");
     s.push_str("\\def\\endcitation{\\par\\leftskip=0em\\rightskip=0em\\medskip\\_firstnoindent}\n");
+    s.push_str("\\def\\begdialogue{\\par\\medskip\\leftskip=5em\\rightskip=2em\\noindent}\n");
+    s.push_str("\\def\\enddialogue{\\par\\leftskip=0em\\rightskip=0em\\medskip\\_firstnoindent}\n");
     // \maketitle is not built into OpTeX; define it here.
     // vertical fill, title (via \tit), author in italics, vertical fill, page break.
     s.push_str("\\def\\maketitle{\\bgroup\\footline={}\\headline={}\\vglue0pt plus1fill\\centerline{{\\typosize[18/22]\\bf\\thetitle}}\\medskip\\centerline{{\\it\\theauthor}}\\vglue0pt plus2fill\\eject\\egroup}\n");
@@ -438,6 +445,26 @@ struct Context {
     image_pending_path: Option<PathBuf>,
     /// Measured image width waiting for end_tag (deferred output).
     image_pending_width: Option<String>,
+    /// Nesting depth of blockquote (0 = not inside any blockquote).
+    in_blockquote: u32,
+    /// True immediately after Tag::Paragraph starts inside a blockquote,
+    /// before any content is emitted. Used to detect speaker labels (**D:** / **s:**).
+    bq_para_start: bool,
+    /// True while rendering a citelabel strong group (\citelabel{...}).
+    in_cite_label: bool,
+    /// Per-nesting-level flag: true if this blockquote contains speaker labels (= dialogue).
+    bq_is_dialogue: Vec<bool>,
+    /// Per-nesting-level byte offset in `out` where \begcitation was written.
+    /// Used to retroactively replace it with \begdialogue when the first label is detected.
+    bq_open_pos: Vec<usize>,
+    /// True after H1 heading end, until the first paragraph of the chapter begins.
+    drop_cap_pending: bool,
+    /// True for the first Text event of the first body paragraph of a chapter.
+    in_drop_cap_para: bool,
+    /// True while inside a `part` fenced code block.
+    in_part_block: bool,
+    /// Buffered content of the current `part` fenced code block.
+    part_buf: String,
 }
 
 impl Context {
@@ -468,6 +495,15 @@ impl Context {
             caption_text: String::new(),
             image_pending_path: None,
             image_pending_width: None,
+            in_blockquote: 0,
+            bq_para_start: false,
+            in_cite_label: false,
+            bq_is_dialogue: Vec::new(),
+            bq_open_pos: Vec::new(),
+            drop_cap_pending: false,
+            in_drop_cap_para: false,
+            in_part_block: false,
+            part_buf: String::new(),
         }
     }
 
@@ -504,8 +540,11 @@ impl Context {
             Event::Start(tag) => self.start_tag(tag, out),
             Event::End(tag)   => self.end_tag(tag, out),
             Event::Text(t)    => {
+                self.bq_para_start = false;
                 if self.in_image {
                     self.image_alt.push_str(&t);
+                } else if self.in_part_block {
+                    self.part_buf.push_str(&tex_escape(&t));
                 } else if self.in_callout {
                     let escaped = tex_escape(&t);
                     let processed = typo::apply(&escaped);
@@ -518,7 +557,21 @@ impl Context {
                     }
                     let escaped = tex_escape(&t);
                     let processed = typo::apply(&escaped);
-                    out.push_str(&processed);
+                    if self.in_drop_cap_para {
+                        self.in_drop_cap_para = false;
+                        let raw = t.as_ref();
+                        let mut chars = raw.chars();
+                        if let Some(first) = chars.next() {
+                            let rest = &raw[first.len_utf8()..];
+                            let first_tex = tex_escape(&first.to_string());
+                            let rest_tex = typo::apply(&tex_escape(rest));
+                            out.push_str(&format!("\\IC{{{}}}{}", first_tex, rest_tex));
+                        } else {
+                            out.push_str(&processed);
+                        }
+                    } else {
+                        out.push_str(&processed);
+                    }
                 }
             }
             Event::InlineMath(s) => {
@@ -540,9 +593,25 @@ impl Context {
             Event::TaskListMarker(checked) => {
                 out.push_str(if checked { "[{\\tt x}]\\ " } else { "[\\ ]\\ " });
             }
-            Event::SoftBreak => out.push('\n'),
-            Event::HardBreak => out.push_str("\\hfil\\break\n"),
-            Event::Rule      => out.push_str("\\noindent\\hrule\n\n"),
+            Event::SoftBreak => {
+                if self.in_blockquote > 0 {
+                    // Each line in a dialogue blockquote is a separate speaker turn.
+                    // Treat soft breaks as paragraph breaks so every label gets \citelabel.
+                    out.push_str("\\par\n");
+                    self.bq_para_start = true;
+                } else {
+                    out.push('\n');
+                }
+            }
+            Event::HardBreak => {
+                if self.in_blockquote > 0 {
+                    out.push_str("\\par\n");
+                    self.bq_para_start = true;
+                } else {
+                    out.push_str("\\hfil\\break\n");
+                }
+            }
+            Event::Rule => out.push_str("\\ornsep\n\n"),
             Event::Html(_) | Event::InlineHtml(_) => {} // discarded
             _ => {}
         }
@@ -565,8 +634,33 @@ impl Context {
                     self.caption_text.clear();
                 }
                 self.after_table = false;
+                if self.in_blockquote > 0 {
+                    self.bq_para_start = true;
+                } else if self.drop_cap_pending {
+                    self.drop_cap_pending = false;
+                    self.in_drop_cap_para = true;
+                }
             }
-            Tag::Strong => out.push_str("{\\bf "),
+            Tag::Strong => {
+                if self.bq_para_start && self.in_blockquote > 0 {
+                    // First speaker label in this blockquote — mark it as dialogue and
+                    // retroactively replace \begcitation with \begdialogue at the saved position.
+                    // Both macros are exactly 12 ASCII bytes so the replacement is length-preserving.
+                    if let Some(is_dia) = self.bq_is_dialogue.last_mut() {
+                        if !*is_dia {
+                            *is_dia = true;
+                            if let Some(&pos) = self.bq_open_pos.last() {
+                                out.replace_range(pos..pos + 12, "\\begdialogue");
+                            }
+                        }
+                    }
+                    self.in_cite_label = true;
+                    out.push_str("\\citelabel{");
+                } else {
+                    out.push_str("{\\bf ");
+                }
+                self.bq_para_start = false;
+            }
             Tag::Emphasis => out.push_str("{\\it "),
             Tag::Strikethrough => out.push_str("\\strike{"),
             Tag::CodeBlock(CodeBlockKind::Fenced(ref lang))
@@ -579,6 +673,12 @@ impl Context {
             {
                 self.in_callout = true;
                 self.callout_buf.clear();
+            }
+            Tag::CodeBlock(CodeBlockKind::Fenced(ref lang))
+                if lang.trim() == "part" =>
+            {
+                self.in_part_block = true;
+                self.part_buf.clear();
             }
             Tag::CodeBlock(_) => {
                 self.in_code_block = true;
@@ -593,7 +693,12 @@ impl Context {
                 out.push_str("\\begitems \\style n\n");
             }
             Tag::Item => out.push_str("* "),
-            Tag::BlockQuote(_) => out.push_str("\\begcitation\n"),
+            Tag::BlockQuote(_) => {
+                self.in_blockquote += 1;
+                self.bq_open_pos.push(out.len());
+                self.bq_is_dialogue.push(false);
+                out.push_str("\\begcitation\n");
+            }
             Tag::Link { dest_url, title: _, id: _, .. } => {
                 out.push_str(&format!("\\ulink[{}]{{", dest_url));
             }
@@ -654,7 +759,13 @@ impl Context {
 
     fn end_tag(&mut self, tag: TagEnd, out: &mut String) {
         match tag {
-            TagEnd::Heading(_) => out.push('\n'),
+            TagEnd::Heading(level) => {
+                out.push('\n');
+                if level == HeadingLevel::H1 {
+                    self.drop_cap_pending = true;
+                    self.in_drop_cap_para = false;
+                }
+            }
             TagEnd::Paragraph => {
                 if self.caption_para {
                     self.caption_para = false;
@@ -670,10 +781,18 @@ impl Context {
                     out.push_str("\n\n");
                 }
             }
-            TagEnd::Strong | TagEnd::Emphasis | TagEnd::Strikethrough => out.push('}'),
+            TagEnd::Strong => {
+                self.in_cite_label = false;
+                out.push('}');
+            }
+            TagEnd::Emphasis | TagEnd::Strikethrough => out.push('}'),
             TagEnd::CodeBlock => {
                 if self.in_raw_tex {
                     self.in_raw_tex = false;
+                } else if self.in_part_block {
+                    self.in_part_block = false;
+                    let body = std::mem::take(&mut self.part_buf);
+                    out.push_str(&format!("\\partpage{{{}}}\n\n", body.trim()));
                 } else if self.in_callout {
                     self.in_callout = false;
                     let body = std::mem::take(&mut self.callout_buf);
@@ -692,7 +811,17 @@ impl Context {
                 out.push_str("\\enditems\n\n");
             }
             TagEnd::Item => out.push('\n'),
-            TagEnd::BlockQuote(_) => out.push_str("\\endcitation\n\n"),
+            TagEnd::BlockQuote(_) => {
+                if self.in_blockquote > 0 { self.in_blockquote -= 1; }
+                self.bq_para_start = false;
+                let is_dia = self.bq_is_dialogue.pop().unwrap_or(false);
+                self.bq_open_pos.pop();
+                if is_dia {
+                    out.push_str("\\enddialogue\n\n");
+                } else {
+                    out.push_str("\\endcitation\n\n");
+                }
+            }
             TagEnd::Link => out.push('}'),
             TagEnd::Superscript => out.push('}'),
             TagEnd::Subscript   => out.push('}'),
@@ -709,21 +838,44 @@ impl Context {
                 let (alt, attrs) = split_image_alt(&raw_alt);
                 let is_fullpage = attrs.split_whitespace()
                     .any(|a| a == ".fullpage" || a == "fullpage");
-                if let (Some(path), Some(width)) = (
+                let is_chapter = attrs.split_whitespace()
+                    .any(|a| a == ".chapter" || a == "chapter");
+                // Parse optional width= attribute: width=8cm or width=70%
+                let attr_width: Option<String> = attrs.split_whitespace()
+                    .find(|a| a.starts_with("width="))
+                    .map(|a| {
+                        let v = &a["width=".len()..];
+                        if v.ends_with('%') {
+                            let pct: f64 = v[..v.len()-1].parse().unwrap_or(100.0);
+                            format!("{:.4}\\hsize", pct / 100.0)
+                        } else {
+                            v.to_owned()
+                        }
+                    });
+                if let (Some(path), Some(auto_width)) = (
                     self.image_pending_path.take(),
                     self.image_pending_width.take(),
                 ) {
+                    let width = attr_width.as_deref().unwrap_or(&auto_width);
                     if is_fullpage {
                         out.push_str(&format!(
-                            "\\par\n\
+                            "\\vfil\\eject\n\
                              \\bgroup\\footline={{}}\\headline={{}}\n\
                              \\vbox to\\vsize{{\\vfil\\picw=\\hsize \\inspic {} \\vfil}}\n\
-                             \\egroup\n\
-                             \\eject\n",
+                             \\eject\n\
+                             \\egroup\n",
+                            path.display()
+                        ));
+                    } else if is_chapter {
+                        out.push_str(&format!(
+                            "\\chapterimage{{{width}}}{{{}}}\n",
                             path.display()
                         ));
                     } else {
-                        out.push_str(&format!("\\picw={width} \\inspic {}\n", path.display()));
+                        out.push_str(&format!(
+                            "\\centimage{{{width}}}{{{}}}\n",
+                            path.display()
+                        ));
                         if self.captions && !alt.is_empty() {
                             out.push_str(&format!("\\caption/f {alt}\n"));
                         }
