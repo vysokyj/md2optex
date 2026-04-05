@@ -782,8 +782,34 @@ impl Context {
                 }
             }
             TagEnd::Strong => {
-                self.in_cite_label = false;
-                out.push('}');
+                if self.in_cite_label {
+                    self.in_cite_label = false;
+                    // A speaker label must end with ':' (e.g. "DOM:" / "sub:").
+                    // If it doesn't (e.g. "Varování."), undo the dialogue detection
+                    // and fall back to a plain bold group.
+                    if out.ends_with(':') {
+                        out.push('}'); // close \citelabel{...}
+                    } else {
+                        // Undo \citelabel{ → {\bf  (different lengths — do before bq_pos fix)
+                        if let Some(cite_pos) = out.rfind("\\citelabel{") {
+                            out.replace_range(cite_pos..cite_pos + 11, "{\\bf ");
+                        }
+                        // Undo \begdialogue → \begcitation (same length: 12 chars each)
+                        if let Some(is_dia) = self.bq_is_dialogue.last_mut() {
+                            if *is_dia {
+                                *is_dia = false;
+                                if let Some(&bq_pos) = self.bq_open_pos.last() {
+                                    if out[bq_pos..].starts_with("\\begdialogue") {
+                                        out.replace_range(bq_pos..bq_pos + 12, "\\begcitation");
+                                    }
+                                }
+                            }
+                        }
+                        out.push('}'); // close {\bf ...}
+                    }
+                } else {
+                    out.push('}');
+                }
             }
             TagEnd::Emphasis | TagEnd::Strikethrough => out.push('}'),
             TagEnd::CodeBlock => {
