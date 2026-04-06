@@ -277,6 +277,72 @@ Pokud jsou v `[book]` vyplněna pole `title` a/nebo `author`, vygeneruje se auto
 - Obsah (pokud `toc` není `false`): garantovaně lichá strana, bez záhlaví/zápatí
 - Číslování stránek se resetuje na 1 na začátku těla dokumentu
 
+## Pandoc-kompatibilní atributy
+
+md2optex podporuje Pandoc-kompatibilní syntaxi atributů `{#id .třída klíč=hodnota}`. Pulldown-cmark atributy nativně neparsuje — md2optex je detekuje a zpracovává vlastním pre/post-processingem.
+
+### Atributy dle Pandoc specifikace
+
+| Element | Syntaxe | Příklad | md2optex |
+|---------|---------|---------|:--------:|
+| Nadpisy | `# Text {attrs}` | `# Úvod {#intro .unnumbered}` | --- |
+| Code blocks | `` ```lang {attrs} `` | `` ```python {.numberLines startFrom="10"} `` | --- |
+| Obrázky | `![alt](url){attrs}` | `![Foto](f.png){width=8cm}` | **ano** |
+| Tabulky | `{attrs}` na řádku za tabulkou | `{.longtable}` | --- |
+| Spans | `[text]{attrs}` | `[text]{.smallcaps}` | --- |
+| Divs | `::: {attrs}` … `:::` | `::: {.warning}` | --- |
+| Inline code | `` `code`{attrs} `` | `` `x`{.python} `` | --- |
+| Odkazy | `[text](url){attrs}` | `[link](url){target=_blank}` | --- |
+
+### Speciální atributy dle Pandoc
+
+**Nadpisy:**
+
+| Atribut | Popis | md2optex |
+|---------|-------|:--------:|
+| `#id` | Identifikátor (label, kotva) | --- |
+| `.unnumbered` nebo `-` | Potlačí číslování | --- |
+| `.unlisted` | Vyloučí z obsahu (TOC) | --- |
+
+**Code blocks:**
+
+| Atribut | Popis | md2optex |
+|---------|-------|:--------:|
+| `.numberLines` / `.number-lines` | Číslování řádků | --- |
+| `startFrom="N"` | Počáteční číslo řádku | --- |
+| `.lineAnchors` / `.line-anchors` | Klikatelné kotvy řádků (HTML) | --- |
+
+**Obrázky:**
+
+| Atribut | Popis | md2optex |
+|---------|-------|:--------:|
+| `width=hodnota` | Šířka (cm, mm, px, %, in) | **ano** |
+| `height=hodnota` | Výška | --- |
+| `#id` | Label pro odkaz | --- |
+
+**Tabulky:**
+
+| Atribut | Popis | md2optex |
+|---------|-------|:--------:|
+| `.longtable` | Tabulka s lomením přes stránky | --- |
+| `#id` | Label pro odkaz | --- |
+
+**Spans a inline formátování:**
+
+| Atribut | Popis | md2optex |
+|---------|-------|:--------:|
+| `.smallcaps` | Kapitálky | --- |
+| `.underline` | Podtržení | --- |
+| `.mark` | Zvýraznění | --- |
+| `{=format}` | Raw obsah pro daný formát | --- |
+
+### Rozšíření md2optex (nad rámec Pandoc)
+
+| Element | Atribut | Popis |
+|---------|---------|-------|
+| Code blocks | `` ```tex `` / `` ```optex `` | Raw TeX passthrough (bez escapování) |
+| Code blocks | `` ```praxe `` | Callout blok "Z praxe" (styl `book`) |
+
 ## Slovník dělení slov
 
 Plaintext soubor, každý řádek jedno slovo s dělicími místy označenými pomlčkou. Prázdné řádky a řádky začínající `#` jsou ignorovány.
@@ -303,8 +369,7 @@ Výsledek v preambuli:
 make build        # debug build
 make test         # jednotkové a integrační testy
 make check        # fmt + clippy + testy
-make examples     # vygeneruje PDF ukázky pro všechny styly (vyžaduje optex)
-make book-sample  # zkompiluje příklad knihy (examples/book-sample/)
+make examples     # vygeneruje PDF ukázky pro všechny styly + book-sample (vyžaduje optex)
 make clean        # smaže build artefakty
 ```
 
