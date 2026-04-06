@@ -1,6 +1,6 @@
 # Vliv konzumace piva na kvalitu zdrojového kódu
 
-![Programátor s pivem](beer_images/01_programmer_with_beer.webp)
+![Programátor s pivem](beer_images/01_programmer_with_beer.png)
 
 ## Abstrakt
 
@@ -18,7 +18,7 @@ Tato zdánlivě jednoduchá otázka vedla k jednomu z nejrozsáhlejších výzku
 
 [^1]: Dobrovolníci byli rekrutováni z lokálních hospod. Jejich motivace k účasti ve studii byla zajištěna příslibem neomezeného množství testovacích vzorků.
 
-![Ballmerův vrchol](beer_images/02_ballmer_peak.webp)
+![Ballmerův vrchol](beer_images/02_ballmer_peak.png)
 
 ### Ballmerův vrchol -- teorie a praxe
 
@@ -70,7 +70,7 @@ Subjekty byly rozděleny do skupin podle preferovaného programovacího jazyka:
 | G | C++ | 18 | 3,9 | Segfault-related drinking |
 | H | Go | 10 | 2,0 | Pijí metodicky a jednoduše |
 
-![Hospodský coworking](beer_images/03_pub_coworking.webp)
+![Hospodský coworking](beer_images/03_pub_coworking.png)
 
 ### Testovací prostředí
 
@@ -290,7 +290,7 @@ Hospodské prostředí vykazovalo o 23 % vyšší produktivitu než kancelář. 
 
 [^5]: Tento závěr je v souladu s předchozím výzkumem, který ukázal, že zvuk kávovaru a cinkání sklenic aktivuje programátorské centrum v mozku.
 
-![Code review po šestém pivu](beer_images/04_code_review.webp)
+![Code review po šestém pivu](beer_images/04_code_review.png)
 
 ### Korelace s code review
 
@@ -304,7 +304,7 @@ Byla pozorována silná korelace mezi počtem piv a ochotou schvalovat pull requ
 
 ---
 
-![Deploy v pátek](beer_images/05_deploy_friday.webp)
+![Deploy v pátek](beer_images/05_deploy_friday.png)
 
 ## Doporučení pro praxi
 

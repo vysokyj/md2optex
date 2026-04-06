@@ -133,9 +133,9 @@ fn link() {
 #[test]
 fn image_with_base_dir_uses_absolute_path() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
-    let out = md2optex::renderer::render_body("![alt](example.png)", 96, Some(&dir), None);
+    let out = md2optex::renderer::render_body("![alt](sample.png)", 96, Some(&dir), None);
     // Path should be absolute (starts with /)
-    assert!(out.contains("/examples/example.png"), "expected absolute path in: {out}");
+    assert!(out.contains("/examples/sample.png"), "expected absolute path in: {out}");
     // Image is 1024px wide → > 15 cm at 96 DPI → \hsize
     assert!(out.contains("\\centimage{\\hsize}"), "expected \\hsize for wide image in: {out}");
 }
@@ -151,9 +151,9 @@ fn image_with_images_dir_resolves_via_images_dir() {
     let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let images_dir = base.join("examples");
     let out = md2optex::renderer::render_body(
-        "![alt](example.png)", 96, Some(base), Some(&images_dir),
+        "![alt](sample.png)", 96, Some(base), Some(&images_dir),
     );
-    assert!(out.contains("/examples/example.png"), "expected images_dir path in: {out}");
+    assert!(out.contains("/examples/sample.png"), "expected images_dir path in: {out}");
 }
 
 // ── Tables ───────────────────────────────────────────────────────────────────

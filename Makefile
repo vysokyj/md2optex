@@ -1,8 +1,8 @@
 BINARY      = md2optex
-EXAMPLE     ?= examples/sample.md
 BOOK_SAMPLE  = examples/book-sample
 BUILDDIR     = target/examples
 STYLES       = minimal book academic manual
+EXAMPLES    = $(wildcard examples/*.md)
 
 .PHONY: all build release install uninstall test check fmt lint clean examples book-sample
 
@@ -31,25 +31,29 @@ fmt:
 lint:
 	cargo clippy -- -D warnings
 
-# Build the binary quietly, then generate TeX + PDF for every built-in style.
+# Build the binary quietly, then generate TeX + PDF for every example × style combination,
+# plus each example with default style.
 examples:
 	RUSTFLAGS="-A warnings" cargo build --quiet
 	mkdir -p $(BUILDDIR)
-	@for style in $(STYLES); do \
-		echo "--- $$style ---"; \
-		./target/debug/$(BINARY) --style $$style $(EXAMPLE) \
-			-o $(CURDIR)/$(BUILDDIR)/sample-$$style.tex; \
-		cd $(CURDIR)/$(BUILDDIR) && \
-		optex -interaction=batchmode sample-$$style.tex \
-			>sample-$$style.stdout 2>&1 \
-		|| { echo "OpTeX failed for style $$style:"; \
-		     grep "^!" sample-$$style.log || cat sample-$$style.log; \
-		     cd $(CURDIR); exit 1; }; \
-		cd $(CURDIR); \
-		echo "Output: $(BUILDDIR)/sample-$$style.pdf"; \
+	@for md in $(EXAMPLES); do \
+		name=$$(basename $$md .md); \
+		for style in $(STYLES); do \
+			echo "--- $$name / $$style ---"; \
+			./target/debug/$(BINARY) --style $$style $$md \
+				-o $(CURDIR)/$(BUILDDIR)/$$name-$$style.tex; \
+			cd $(CURDIR)/$(BUILDDIR) && \
+			optex -interaction=batchmode $$name-$$style.tex \
+				>$$name-$$style.stdout 2>&1 \
+			|| { echo "OpTeX failed for $$name/$$style:"; \
+			     grep "^!" $$name-$$style.log || cat $$name-$$style.log; \
+			     cd $(CURDIR); exit 1; }; \
+			cd $(CURDIR); \
+			echo "Output: $(BUILDDIR)/$$name-$$style.pdf"; \
+		done; \
 	done
 	@echo "Done — PDFs in $(BUILDDIR)/:"
-	@ls $(BUILDDIR)/sample-*.pdf
+	@ls $(BUILDDIR)/*.pdf
 
 book-sample:
 	RUSTFLAGS="-A warnings" cargo build --quiet
