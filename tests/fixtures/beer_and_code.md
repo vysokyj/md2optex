@@ -1,5 +1,7 @@
 # Vliv konzumace piva na kvalitu zdrojového kódu
 
+![Programátor s pivem](images/01_programmer_with_beer.webp)
+
 ## Abstrakt
 
 Tato přelomová studie zkoumá dosud opomíjený, avšak v praxi hojně využívaný fenomén -- vliv konzumace piva na kvalitu zdrojového kódu. Výzkumný tým pod vedením prof. Ing. Jaroslava Pivečky, DrSc. strávil tři roky systematickým zkoumáním tohoto jevu v přirozeném prostředí vývojářů -- tedy v kancelářích, home officech a hospodách.
@@ -15,6 +17,8 @@ Každý programátor to zná. Je pátek odpoledne, kód se odmítá zkompilovat,
 Tato zdánlivě jednoduchá otázka vedla k jednomu z nejrozsáhlejších výzkumných projektů v dějinách softwarového inženýrství. Náš tým provedl celkem 2 847 experimentů na 156 dobrovolnících[^1] a výsledky zpracoval pomocí metod, které by statistici označili za "kreativní".
 
 [^1]: Dobrovolníci byli rekrutováni z lokálních hospod. Jejich motivace k účasti ve studii byla zajištěna příslibem neomezeného množství testovacích vzorků.
+
+![Ballmerův vrchol](images/02_ballmer_peak.webp)
 
 ### Ballmerův vrchol -- teorie a praxe
 
@@ -65,6 +69,8 @@ Subjekty byly rozděleny do skupin podle preferovaného programovacího jazyka:
 | F | Haskell | 8 | 0,3 | Preferují čaj s monádami |
 | G | C++ | 18 | 3,9 | Segfault-related drinking |
 | H | Go | 10 | 2,0 | Pijí metodicky a jednoduše |
+
+![Hospodský coworking](images/03_pub_coworking.webp)
 
 ### Testovací prostředí
 
@@ -284,6 +290,8 @@ Hospodské prostředí vykazovalo o 23 % vyšší produktivitu než kancelář. 
 
 [^5]: Tento závěr je v souladu s předchozím výzkumem, který ukázal, že zvuk kávovaru a cinkání sklenic aktivuje programátorské centrum v mozku.
 
+![Code review po šestém pivu](images/04_code_review.webp)
+
 ### Korelace s code review
 
 Byla pozorována silná korelace mezi počtem piv a ochotou schvalovat pull requesty:
@@ -295,6 +303,8 @@ Byla pozorována silná korelace mezi počtem piv a ochotou schvalovat pull requ
 - **4+ piv**: Auto-merge enabled, přidal se do CODEOWNERS pro celý repozitář.
 
 ---
+
+![Deploy v pátek](images/05_deploy_friday.webp)
 
 ## Doporučení pro praxi
 
