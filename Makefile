@@ -4,7 +4,7 @@ BUILDDIR     = target/examples
 STYLES       = minimal book academic manual
 EXAMPLES    = $(wildcard examples/*.md)
 
-.PHONY: all build release install uninstall test check fmt lint clean examples book-sample
+.PHONY: all build release install uninstall test check fmt lint clean examples
 
 all: build
 
@@ -52,17 +52,16 @@ examples:
 			echo "Output: $(BUILDDIR)/$$name-$$style.pdf"; \
 		done; \
 	done
-	@echo "Done — PDFs in $(BUILDDIR)/:"
-	@ls $(BUILDDIR)/*.pdf
-
-book-sample:
-	RUSTFLAGS="-A warnings" cargo build --quiet
-	mkdir -p $(BUILDDIR)
+	@echo "--- book-sample ---"
 	./target/debug/$(BINARY) $(BOOK_SAMPLE) -o $(CURDIR)/$(BUILDDIR)/book-sample.tex
 	cd $(CURDIR)/$(BUILDDIR) && \
 	optex -interaction=batchmode book-sample.tex >book-sample.stdout 2>&1 \
-	|| { echo "OpTeX failed:"; grep "^!" book-sample.log || cat book-sample.log; cd $(CURDIR); exit 1; }
+	|| { echo "OpTeX failed for book-sample:"; \
+	     grep "^!" book-sample.log || cat book-sample.log; \
+	     cd $(CURDIR); exit 1; }
 	@echo "Output: $(BUILDDIR)/book-sample.pdf"
+	@echo "Done — PDFs in $(BUILDDIR)/:"
+	@ls $(BUILDDIR)/*.pdf
 
 clean:
 	cargo clean
