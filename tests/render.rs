@@ -117,7 +117,7 @@ fn block_quote() {
 
 #[test]
 fn horizontal_rule() {
-    assert!(body("---").contains("\\noindent\\hrule"));
+    assert!(body("---").contains("\\ornsep"));
 }
 
 // ── Links ────────────────────────────────────────────────────────────────────
@@ -137,13 +137,13 @@ fn image_with_base_dir_uses_absolute_path() {
     // Path should be absolute (starts with /)
     assert!(out.contains("/examples/example.png"), "expected absolute path in: {out}");
     // Image is 1024px wide → > 15 cm at 96 DPI → \hsize
-    assert!(out.contains("\\picw=\\hsize"), "expected \\hsize for wide image in: {out}");
+    assert!(out.contains("\\centimage{\\hsize}"), "expected \\hsize for wide image in: {out}");
 }
 
 #[test]
 fn image_without_base_dir_keeps_path() {
     let out = md2optex::renderer::render_body("![alt](img/photo.png)", 96, None, None);
-    assert!(out.contains("\\inspic img/photo.png"), "expected original path in: {out}");
+    assert!(out.contains("\\centimage{\\hsize}{img/photo.png}"), "expected original path in: {out}");
 }
 
 #[test]
@@ -163,7 +163,7 @@ fn table_alignment_spec() {
     let md = "| L | C | R |\n|:--|:-:|--:|\n| a | b | c |";
     let out = body(md);
     // Three wrapping columns: each gets \hsize/3.
-    assert!(out.contains("\\table{p{\\dimexpr\\hsize/3\\relax} p{\\dimexpr\\hsize/3\\relax} p{\\dimexpr\\hsize/3\\relax}}{"), "got: {out}");
+    assert!(out.contains("\\table{p{\\dimexpr(\\hsize - 3em)/3\\relax} p{\\dimexpr(\\hsize - 3em)/3\\relax} p{\\dimexpr(\\hsize - 3em)/3\\relax}}{"), "got: {out}");
 }
 
 #[test]
