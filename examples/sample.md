@@ -156,6 +156,6 @@ Text s poznámkou[^1] a další poznámkou[^2].
 
 Obrázek se automaticky změří a vloží do sazby:
 
-![Ukázkový obrázek](example.png)
+![Ukázkový obrázek](sample.png)
 
 Pokud soubor neexistuje, vypíše se varování na stderr a použije se `\picw=\hsize`.

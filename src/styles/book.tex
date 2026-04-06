@@ -51,6 +51,18 @@
    \_firstnoindent
 }
 
+% "Z praxe" callout — left rule with italic text, visually distinct from body text.
+% Used for humorous or practical commentary that complements but doesn't interrupt the manual.
+% Markdown syntax: fenced code block with language "praxe"
+\def\zpraxe#1{\par\medskip
+  \noindent\hbox{%
+    \vrule width2.5pt%
+    \hskip8pt%
+    \vbox{\advance\hsize by-10.5pt\relax
+      \parindent=0pt
+      \smallskip{\it #1}\par\smallskip}}%
+  \par\medskip}
+
 % Subsection: no number, smaller bold
 \_def\_printsecc#1{\_par
    \_abovetitle{\_penalty-101}{\_medskip\_smallskip}
