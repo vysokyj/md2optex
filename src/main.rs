@@ -101,7 +101,6 @@ fn load_chapters(dir: &Path) -> Result<String, Error> {
         .find(|p| p.exists())
         .ok_or_else(|| Error::MissingChaptersDir(dir.join("chapters")))?;
 
-
     let mut files: Vec<PathBuf> = fs::read_dir(&chapters_dir)?
         .filter_map(|e| e.ok())
         .map(|e| e.path())
@@ -128,8 +127,7 @@ fn load_hyphenation(args: &Args, metadata: Option<&Metadata>) -> Result<Vec<Stri
         return Ok(vec![]);
     };
 
-    let content = fs::read_to_string(&path)
-        .map_err(|e| Error::HyphenationDict(path.clone(), e))?;
+    let content = fs::read_to_string(&path).map_err(|e| Error::HyphenationDict(path.clone(), e))?;
 
     let words = content
         .lines()

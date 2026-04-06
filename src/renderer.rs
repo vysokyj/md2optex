@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, HeadingLevel, Alignment, CodeBlockKind};
+use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 use crate::error::Error;
 use crate::metadata::{Metadata, TocValue};
@@ -9,20 +9,23 @@ use crate::styles;
 use crate::typo;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-enum TocPlacement { Front, Back }
+enum TocPlacement {
+    Front,
+    Back,
+}
 
 /// Resolves TOC placement from metadata + style default.
 /// Style "book" defaults to Back; all others default to Front.
 fn resolve_toc(toc: Option<&TocValue>, style_name: Option<&str>) -> Option<TocPlacement> {
     let style_default = match style_name {
         Some("book") => TocPlacement::Back,
-        _            => TocPlacement::Front,
+        _ => TocPlacement::Front,
     };
     match toc {
         None | Some(TocValue::Bool(false)) => None,
-        Some(TocValue::Bool(true))         => Some(style_default),
-        Some(TocValue::Position(s)) if s == "back"  => Some(TocPlacement::Back),
-        Some(TocValue::Position(_))        => Some(TocPlacement::Front),
+        Some(TocValue::Bool(true)) => Some(style_default),
+        Some(TocValue::Position(s)) if s == "back" => Some(TocPlacement::Back),
+        Some(TocValue::Position(_)) => Some(TocPlacement::Front),
     }
 }
 
@@ -53,13 +56,13 @@ pub fn render(
 ) -> Result<String, Error> {
     // Extract YAML front matter when no external metadata is provided (single-file mode).
     // yaml_meta_owned must outlive effective_metadata (which may borrow it).
-    let yaml_meta_owned: Option<Metadata>;
+    #[allow(unused_assignments)]
+    let mut yaml_meta_owned: Option<Metadata> = None;
     let (metadata, markdown) = if metadata.is_none() {
         let (ym, rest) = extract_yaml_front_matter(markdown);
         yaml_meta_owned = ym;
         (yaml_meta_owned.as_ref(), rest)
     } else {
-        yaml_meta_owned = None;
         (metadata, markdown)
     };
 
@@ -84,20 +87,33 @@ pub fn render(
     let is_book = style_name == Some("book");
 
     let mut out = String::new();
-    out.push_str(&build_preamble(metadata, hyphenation, style, toc_placement, is_book, base_dir)?);
+    out.push_str(&build_preamble(
+        metadata,
+        hyphenation,
+        style,
+        toc_placement,
+        is_book,
+        base_dir,
+    )?);
     let images_dir = metadata
         .and_then(|m| m.paths.as_ref())
         .and_then(|p| p.images.as_deref())
         .and_then(|rel| base_dir.map(|b| b.join(rel)));
     let captions = style_name == Some("academic");
-    out.push_str(&render_body_impl(markdown, dpi, base_dir, images_dir.as_deref(), nonum, toc_depth, captions));
+    out.push_str(&render_body_impl(
+        markdown,
+        dpi,
+        base_dir,
+        images_dir.as_deref(),
+        nonum,
+        toc_depth,
+        captions,
+    ));
     if toc_placement == Some(TocPlacement::Back) {
         out.push_str(&toc_block(TocPlacement::Back));
     }
-    if is_book {
-        if let Some(meta) = metadata {
-            out.push_str(&back_colophon_block(meta));
-        }
+    if is_book && let Some(meta) = metadata {
+        out.push_str(&back_colophon_block(meta));
     }
     out.push_str("\n\\bye\n");
     Ok(out)
@@ -105,16 +121,36 @@ pub fn render(
 
 /// Renders only the document body (no preamble, no `\bye`).
 /// Used by integration tests; uses neutral defaults (no nonum, unlimited TOC depth).
-pub fn render_body(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>) -> String {
+#[allow(dead_code)]
+pub fn render_body(
+    markdown: &str,
+    dpi: u32,
+    base_dir: Option<&Path>,
+    images_dir: Option<&Path>,
+) -> String {
     render_body_impl(markdown, dpi, base_dir, images_dir, false, u32::MAX, false)
 }
 
 /// Like `render_body` but with captions enabled (academic style convention).
-pub fn render_body_captions(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>) -> String {
+#[allow(dead_code)]
+pub fn render_body_captions(
+    markdown: &str,
+    dpi: u32,
+    base_dir: Option<&Path>,
+    images_dir: Option<&Path>,
+) -> String {
     render_body_impl(markdown, dpi, base_dir, images_dir, false, u32::MAX, true)
 }
 
-fn render_body_impl(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>, nonum: bool, toc_depth: u32, captions: bool) -> String {
+fn render_body_impl(
+    markdown: &str,
+    dpi: u32,
+    base_dir: Option<&Path>,
+    images_dir: Option<&Path>,
+    nonum: bool,
+    toc_depth: u32,
+    captions: bool,
+) -> String {
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH
         | Options::ENABLE_TASKLISTS
@@ -122,13 +158,25 @@ fn render_body_impl(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_di
         | Options::ENABLE_MATH
         | Options::ENABLE_SUPERSCRIPT
         | Options::ENABLE_SUBSCRIPT
-        | Options::ENABLE_DEFINITION_LIST;
+        | Options::ENABLE_DEFINITION_LIST
+        | Options::ENABLE_HEADING_ATTRIBUTES;
 
     let preprocessed = preprocess_image_attrs(markdown);
+    let preprocessed = preprocess_span_attrs(&preprocessed);
+    let (preprocessed, longtable_flags) = preprocess_table_attrs(&preprocessed);
     let markdown = preprocessed.as_str();
     let footnotes = collect_footnotes(markdown, opts);
     let parser = Parser::new_ext(markdown, opts);
-    let mut ctx = Context::new(dpi, base_dir, images_dir, nonum, toc_depth, captions, footnotes);
+    let mut ctx = Context::new(
+        dpi,
+        base_dir,
+        images_dir,
+        nonum,
+        toc_depth,
+        captions,
+        footnotes,
+        longtable_flags,
+    );
     let mut out = String::new();
 
     for event in parser {
@@ -137,8 +185,7 @@ fn render_body_impl(markdown: &str, dpi: u32, base_dir: Option<&Path>, images_di
     // Merge consecutive blockquotes (separated only by blank lines) into one
     // continuous block so the left rule spans the full dialogue/citation.
     let out = out.replace("\\endcitation\n\n\\begcitation\n", "\n");
-    let out = out.replace("\\enddialogue\n\n\\begdialogue\n", "\n");
-    out
+    out.replace("\\enddialogue\n\n\\begdialogue\n", "\n")
 }
 
 /// Pre-scans markdown and returns a map of footnote label → rendered TeX body.
@@ -164,21 +211,21 @@ fn collect_footnotes(markdown: &str, opts: Options) -> HashMap<String, String> {
             // Collect the text content inside the footnote definition.
             // We ignore nested block structure (paragraphs, lists) and render
             // inline content only — sufficient for typical footnote usage.
-            _ if current_label.is_some() => {
-                match &event {
-                    Event::Start(_) => depth += 1,
-                    Event::End(_)   => { if depth > 0 { depth -= 1; } }
-                    Event::Text(t)  => {
-                        let escaped = tex_escape(t);
-                        let processed = typo::apply(&escaped);
-                        current_body.push_str(&processed);
-                    }
-                    Event::Code(t)     => current_body.push_str(&format!("{{\\tt {}}}", tex_escape(t))),
-                    Event::SoftBreak   => current_body.push(' '),
-                    Event::HardBreak   => current_body.push(' '),
-                    _ => {}
+            _ if current_label.is_some() => match &event {
+                Event::Start(_) => depth += 1,
+                Event::End(_) => {
+                    depth = depth.saturating_sub(1);
                 }
-            }
+                Event::Text(t) => {
+                    let escaped = tex_escape(t);
+                    let processed = typo::apply(&escaped);
+                    current_body.push_str(&processed);
+                }
+                Event::Code(t) => current_body.push_str(&format!("{{\\tt {}}}", tex_escape(t))),
+                Event::SoftBreak => current_body.push(' '),
+                Event::HardBreak => current_body.push(' '),
+                _ => {}
+            },
             _ => {}
         }
     }
@@ -190,15 +237,20 @@ fn collect_footnotes(markdown: &str, opts: Options) -> HashMap<String, String> {
 /// Recognises `{author}`, `{title}`, `{folio}` placeholders.
 fn running_line(template: &str) -> String {
     let parts: Vec<&str> = template.splitn(3, '&').collect();
-    let left   = parts.first().map(|s| s.trim()).unwrap_or("");
+    let left = parts.first().map(|s| s.trim()).unwrap_or("");
     let center = parts.get(1).map(|s| s.trim()).unwrap_or("");
-    let right  = parts.get(2).map(|s| s.trim()).unwrap_or("");
+    let right = parts.get(2).map(|s| s.trim()).unwrap_or("");
     let subst = |s: &str| {
         s.replace("{author}", "\\theauthor")
-         .replace("{title}",  "\\thetitle")
-         .replace("{folio}",  "\\folio")
+            .replace("{title}", "\\thetitle")
+            .replace("{folio}", "\\folio")
     };
-    format!("{}\\hfil {}\\hfil {}", subst(left), subst(center), subst(right))
+    format!(
+        "{}\\hfil {}\\hfil {}",
+        subst(left),
+        subst(center),
+        subst(right)
+    )
 }
 
 /// Generates the back colophon (tiráž) for book style — placed at the very end
@@ -269,6 +321,8 @@ fn build_preamble(
     s.push_str("\\def\\maketitle{\\bgroup\\footline={}\\headline={}\\vglue0pt plus1fill\\centerline{{\\typosize[18/22]\\bf\\thetitle}}\\medskip\\centerline{{\\it\\theauthor}}\\vglue0pt plus2fill\\eject\\egroup}\n");
     // \strike is not built into OpTeX; draw a mid-height rule over the text.
     s.push_str("\\def\\strike#1{\\leavevmode\\setbox0=\\hbox{#1}\\hbox{\\copy0\\kern-\\wd0\\vrule height0.55em depth-0.45em width\\wd0}}\n");
+    // \highlight: yellow background highlight (for [text]{.mark} spans).
+    s.push_str("\\def\\highlight#1{\\leavevmode\\setbox0=\\hbox{#1}\\dimen0=\\ht0\\advance\\dimen0 by 1pt\\dimen1=\\dp0\\advance\\dimen1 by 1pt\\hbox{\\vrule height\\dimen0 depth\\dimen1 width0pt\\pdfliteral{q 1 1 0 rg}\\vrule height\\dimen0 depth\\dimen1 width\\wd0\\pdfliteral{Q}\\kern-\\wd0\\box0}}\n");
     // \tsuper / \tsub: text-mode superscript / subscript via math mode with roman font.
     s.push_str("\\def\\tsuper#1{$^{\\rm #1}$}\n");
     s.push_str("\\def\\tsub#1{$_{\\rm #1}$}\n");
@@ -402,17 +456,17 @@ fn tex_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
-            '&'  => out.push_str(r"\&"),
-            '%'  => out.push_str(r"\%"),
-            '$'  => out.push_str(r"\$"),
-            '#'  => out.push_str(r"\#"),
-            '_'  => out.push_str(r"\_"),
-            '{'  => out.push_str(r"\{"),
-            '}'  => out.push_str(r"\}"),
-            '~'  => out.push_str(r"\char126 "),
-            '^'  => out.push_str(r"\char94 "),
+            '&' => out.push_str(r"\&"),
+            '%' => out.push_str(r"\%"),
+            '$' => out.push_str(r"\$"),
+            '#' => out.push_str(r"\#"),
+            '_' => out.push_str(r"\_"),
+            '{' => out.push_str(r"\{"),
+            '}' => out.push_str(r"\}"),
+            '~' => out.push_str(r"\char126 "),
+            '^' => out.push_str(r"\char94 "),
             '\\' => out.push_str(r"\char92 "),
-            c    => out.push(c),
+            c => out.push(c),
         }
     }
     out
@@ -474,10 +528,30 @@ struct Context {
     in_part_block: bool,
     /// Buffered content of the current `part` fenced code block.
     part_buf: String,
+    /// Pending `\label[id]` to emit after the current heading ends.
+    pending_label: Option<String>,
+    /// True when the current code block has line numbering enabled (\ttline).
+    code_numbered: bool,
+    /// Pre-scanned longtable flags: true for each table (in order) that has `{.longtable}`.
+    longtable_flags: Vec<bool>,
+    /// Index into longtable_flags, incremented for each table encountered.
+    table_index: usize,
+    /// True if the currently rendering table is a longtable.
+    in_longtable: bool,
 }
 
 impl Context {
-    fn new(dpi: u32, base_dir: Option<&Path>, images_dir: Option<&Path>, nonum: bool, toc_depth: u32, captions: bool, footnotes: HashMap<String, String>) -> Self {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        dpi: u32,
+        base_dir: Option<&Path>,
+        images_dir: Option<&Path>,
+        nonum: bool,
+        toc_depth: u32,
+        captions: bool,
+        footnotes: HashMap<String, String>,
+        longtable_flags: Vec<bool>,
+    ) -> Self {
         Self {
             dpi,
             base_dir: base_dir.map(|p| p.to_path_buf()),
@@ -513,6 +587,11 @@ impl Context {
             in_drop_cap_para: false,
             in_part_block: false,
             part_buf: String::new(),
+            pending_label: None,
+            code_numbered: false,
+            longtable_flags,
+            table_index: 0,
+            in_longtable: false,
         }
     }
 
@@ -547,8 +626,8 @@ impl Context {
         }
         match event {
             Event::Start(tag) => self.start_tag(tag, out),
-            Event::End(tag)   => self.end_tag(tag, out),
-            Event::Text(t)    => {
+            Event::End(tag) => self.end_tag(tag, out),
+            Event::Text(t) => {
                 self.bq_para_start = false;
                 if self.in_image {
                     self.image_alt.push_str(&t);
@@ -564,22 +643,26 @@ impl Context {
                     if self.caption_para {
                         self.caption_text.push_str(&t);
                     }
-                    let escaped = tex_escape(&t);
-                    let processed = typo::apply(&escaped);
-                    if self.in_drop_cap_para {
-                        self.in_drop_cap_para = false;
-                        let raw = t.as_ref();
-                        let mut chars = raw.chars();
-                        if let Some(first) = chars.next() {
-                            let rest = &raw[first.len_utf8()..];
-                            let first_tex = tex_escape(&first.to_string());
-                            let rest_tex = typo::apply(&tex_escape(rest));
-                            out.push_str(&format!("\\IC{{{}}}{}", first_tex, rest_tex));
+                    if t.contains('\x0F') {
+                        emit_text_with_spans(&t, out);
+                    } else {
+                        let escaped = tex_escape(&t);
+                        let processed = typo::apply(&escaped);
+                        if self.in_drop_cap_para {
+                            self.in_drop_cap_para = false;
+                            let raw = t.as_ref();
+                            let mut chars = raw.chars();
+                            if let Some(first) = chars.next() {
+                                let rest = &raw[first.len_utf8()..];
+                                let first_tex = tex_escape(&first.to_string());
+                                let rest_tex = typo::apply(&tex_escape(rest));
+                                out.push_str(&format!("\\IC{{{}}}{}", first_tex, rest_tex));
+                            } else {
+                                out.push_str(&processed);
+                            }
                         } else {
                             out.push_str(&processed);
                         }
-                    } else {
-                        out.push_str(&processed);
                     }
                 }
             }
@@ -595,7 +678,10 @@ impl Context {
                 out.push_str(&format!("{{\\tt {}}}", tex_escape(&t)));
             }
             Event::FootnoteReference(label) => {
-                let body = self.footnotes.get(label.as_ref()).cloned()
+                let body = self
+                    .footnotes
+                    .get(label.as_ref())
+                    .cloned()
                     .unwrap_or_else(|| format!("?{label}"));
                 out.push_str(&format!("\\fnote{{{body}}}"));
             }
@@ -622,19 +708,31 @@ impl Context {
             }
             Event::Rule => out.push_str("\\ornsep\n\n"),
             Event::Html(_) | Event::InlineHtml(_) => {} // discarded
-            _ => {}
         }
     }
 
     fn start_tag(&mut self, tag: Tag, out: &mut String) {
         match tag {
-            Tag::Heading { level, .. } => {
+            Tag::Heading {
+                level, id, classes, ..
+            } => {
                 let cmd = heading_cmd(level);
                 let depth = heading_depth(level);
+                let has_unnumbered = classes
+                    .iter()
+                    .any(|c| c.as_ref() == "unnumbered" || c.as_ref() == "-");
+                let has_unlisted = classes.iter().any(|c| c.as_ref() == "unlisted");
                 out.push('\n');
-                if self.nonum { out.push_str("\\nonum "); }
-                if depth > self.toc_depth { out.push_str("\\notoc "); }
+                if self.nonum || has_unnumbered {
+                    out.push_str("\\nonum ");
+                }
+                if depth > self.toc_depth || has_unlisted {
+                    out.push_str("\\notoc ");
+                }
                 out.push_str(&format!("{cmd} "));
+                if let Some(id) = id {
+                    self.pending_label = Some(id.to_string());
+                }
             }
             Tag::Paragraph => {
                 if self.captions && self.after_table {
@@ -655,12 +753,12 @@ impl Context {
                     // First speaker label in this blockquote — mark it as dialogue and
                     // retroactively replace \begcitation with \begdialogue at the saved position.
                     // Both macros are exactly 12 ASCII bytes so the replacement is length-preserving.
-                    if let Some(is_dia) = self.bq_is_dialogue.last_mut() {
-                        if !*is_dia {
-                            *is_dia = true;
-                            if let Some(&pos) = self.bq_open_pos.last() {
-                                out.replace_range(pos..pos + 12, "\\begdialogue");
-                            }
+                    if let Some(is_dia) = self.bq_is_dialogue.last_mut()
+                        && !*is_dia
+                    {
+                        *is_dia = true;
+                        if let Some(&pos) = self.bq_open_pos.last() {
+                            out.replace_range(pos..pos + 12, "\\begdialogue");
                         }
                     }
                     self.in_cite_label = true;
@@ -672,28 +770,47 @@ impl Context {
             }
             Tag::Emphasis => out.push_str("{\\it "),
             Tag::Strikethrough => out.push_str("\\strike{"),
-            Tag::CodeBlock(CodeBlockKind::Fenced(ref lang))
-                if matches!(lang.trim(), "tex" | "=tex" | "optex" | "=optex") =>
-            {
-                self.in_raw_tex = true;
-            }
-            Tag::CodeBlock(CodeBlockKind::Fenced(ref lang))
-                if lang.trim() == "praxe" =>
-            {
-                self.in_callout = true;
-                self.callout_buf.clear();
-            }
-            Tag::CodeBlock(CodeBlockKind::Fenced(ref lang))
-                if lang.trim() == "part" =>
-            {
-                self.in_part_block = true;
-                self.part_buf.clear();
+            Tag::CodeBlock(CodeBlockKind::Fenced(ref lang)) => {
+                let (base_lang, cb_attrs) = split_code_block_attrs(lang);
+                match base_lang {
+                    "tex" | "=tex" | "optex" | "=optex" => {
+                        self.in_raw_tex = true;
+                    }
+                    "praxe" => {
+                        self.in_callout = true;
+                        self.callout_buf.clear();
+                    }
+                    "part" => {
+                        self.in_part_block = true;
+                        self.part_buf.clear();
+                    }
+                    _ => {
+                        self.in_code_block = true;
+                        let has_number_lines = cb_attrs
+                            .split_whitespace()
+                            .any(|a| a == ".numberLines" || a == ".number-lines");
+                        if has_number_lines {
+                            let start_from = cb_attrs
+                                .split_whitespace()
+                                .find(|a| a.starts_with("startFrom="))
+                                .and_then(|a| {
+                                    let v = &a["startFrom=".len()..];
+                                    v.trim_matches('"').parse::<i32>().ok()
+                                })
+                                .unwrap_or(1);
+                            self.code_numbered = true;
+                            out.push_str(&format!("\\ttline={start_from} \\begtt\n"));
+                        } else {
+                            out.push_str("\\begtt\n");
+                        }
+                    }
+                }
             }
             Tag::CodeBlock(_) => {
                 self.in_code_block = true;
                 out.push_str("\\begtt\n");
             }
-            Tag::List(None)    => {
+            Tag::List(None) => {
                 self.list_depth += 1;
                 out.push_str("\\begitems\n");
             }
@@ -708,7 +825,12 @@ impl Context {
                 self.bq_is_dialogue.push(false);
                 out.push_str("\\begcitation\n");
             }
-            Tag::Link { dest_url, title: _, id: _, .. } => {
+            Tag::Link {
+                dest_url,
+                title: _,
+                id: _,
+                ..
+            } => {
                 out.push_str(&format!("\\ulink[{}]{{", dest_url));
             }
             Tag::Image { dest_url, .. } => {
@@ -723,16 +845,27 @@ impl Context {
                 self.col_alignments = alignments;
                 self.col_index = 0;
                 self.row_count = 0;
+                let is_longtable = self
+                    .longtable_flags
+                    .get(self.table_index)
+                    .copied()
+                    .unwrap_or(false);
+                self.in_longtable = is_longtable;
+                self.table_index += 1;
                 let n = self.col_alignments.len().max(1);
-                // Use p{dim} columns so cell text wraps instead of overflowing.
-                // Each column gets an equal share of \hsize; \dimexpr is evaluated at TeX time.
-                // OpTeX adds \enspace (0.5em) before and after each column via \tabiteml/\tabitemr,
-                // so total overhead is n*1em. Subtract 1em per column to avoid Overfull \hbox.
-                let col = format!("p{{\\dimexpr(\\hsize - {n}em)/{n}\\relax}}");
-                let spec: String = std::iter::repeat(col).take(n).collect::<Vec<_>>().join(" ");
-                // \par\medskip ensures vertical spacing before the table.
-                // \noalign{\hrule\smallskip} adds the top rule (three-line / booktabs style).
-                out.push_str(&format!("\\par\\medskip\\noindent\n\\table{{{spec}}}{{\\noalign{{\\hrule\\smallskip}}\n"));
+                if is_longtable {
+                    // Long table using \halign directly (allows page breaks between rows).
+                    let halign_spec = build_halign_spec(&self.col_alignments, n);
+                    out.push_str(&format!(
+                        "\\par\\medskip\n\\halign to\\hsize{{{}\\cr\n\\noalign{{\\hrule\\smallskip}}\n",
+                        halign_spec
+                    ));
+                } else {
+                    // Use p{dim} columns so cell text wraps instead of overflowing.
+                    let col = format!("p{{\\dimexpr(\\hsize - {n}em)/{n}\\relax}}");
+                    let spec: String = std::iter::repeat_n(col, n).collect::<Vec<_>>().join(" ");
+                    out.push_str(&format!("\\par\\medskip\\noindent\n\\table{{{spec}}}{{\\noalign{{\\hrule\\smallskip}}\n"));
+                }
             }
             Tag::TableHead => {
                 self.in_table_head = true;
@@ -750,12 +883,12 @@ impl Context {
                 // Add \hfil prefix/suffix to restore center/right alignment within the cell.
                 match self.col_alignments.get(self.col_index) {
                     Some(Alignment::Center) => out.push_str("\\hfil "),
-                    Some(Alignment::Right)  => out.push_str("\\hfill "),
+                    Some(Alignment::Right) => out.push_str("\\hfill "),
                     _ => {}
                 }
             }
             Tag::Superscript => out.push_str("\\tsuper{"),
-            Tag::Subscript   => out.push_str("\\tsub{"),
+            Tag::Subscript => out.push_str("\\tsub{"),
             Tag::DefinitionList => out.push_str("\\par\\medskip\n"),
             Tag::DefinitionListTitle => out.push_str("\\noindent{\\bf "),
             Tag::DefinitionListDefinition => out.push_str("\\advance\\leftskip by 2em\\noindent "),
@@ -770,6 +903,9 @@ impl Context {
         match tag {
             TagEnd::Heading(level) => {
                 out.push('\n');
+                if let Some(id) = self.pending_label.take() {
+                    out.push_str(&format!("\\label[{}]\n", id));
+                }
                 if level == HeadingLevel::H1 {
                     self.drop_cap_pending = true;
                     self.in_drop_cap_para = false;
@@ -804,14 +940,14 @@ impl Context {
                             out.replace_range(cite_pos..cite_pos + 11, "{\\bf ");
                         }
                         // Undo \begdialogue → \begcitation (same length: 12 chars each)
-                        if let Some(is_dia) = self.bq_is_dialogue.last_mut() {
-                            if *is_dia {
-                                *is_dia = false;
-                                if let Some(&bq_pos) = self.bq_open_pos.last() {
-                                    if out[bq_pos..].starts_with("\\begdialogue") {
-                                        out.replace_range(bq_pos..bq_pos + 12, "\\begcitation");
-                                    }
-                                }
+                        if let Some(is_dia) = self.bq_is_dialogue.last_mut()
+                            && *is_dia
+                        {
+                            *is_dia = false;
+                            if let Some(&bq_pos) = self.bq_open_pos.last()
+                                && out[bq_pos..].starts_with("\\begdialogue")
+                            {
+                                out.replace_range(bq_pos..bq_pos + 12, "\\begcitation");
                             }
                         }
                         out.push('}'); // close {\bf ...}
@@ -838,7 +974,12 @@ impl Context {
                     out.push_str(&format!("\\fnote{{{}}}\n\n", body.trim()));
                 } else {
                     self.in_code_block = false;
-                    out.push_str("\\endtt\n\n");
+                    out.push_str("\\endtt\n");
+                    if self.code_numbered {
+                        self.code_numbered = false;
+                        out.push_str("\\ttline=-1\n");
+                    }
+                    out.push('\n');
                 }
             }
             TagEnd::List(_) => {
@@ -847,7 +988,9 @@ impl Context {
             }
             TagEnd::Item => out.push('\n'),
             TagEnd::BlockQuote(_) => {
-                if self.in_blockquote > 0 { self.in_blockquote -= 1; }
+                if self.in_blockquote > 0 {
+                    self.in_blockquote -= 1;
+                }
                 self.bq_para_start = false;
                 let is_dia = self.bq_is_dialogue.pop().unwrap_or(false);
                 self.bq_open_pos.pop();
@@ -859,7 +1002,7 @@ impl Context {
             }
             TagEnd::Link => out.push('}'),
             TagEnd::Superscript => out.push('}'),
-            TagEnd::Subscript   => out.push('}'),
+            TagEnd::Subscript => out.push('}'),
             TagEnd::DefinitionListTitle => {
                 out.push_str("}\\par\\nobreak\n");
             }
@@ -871,17 +1014,20 @@ impl Context {
                 self.in_image = false;
                 let raw_alt = std::mem::take(&mut self.image_alt);
                 let (alt, attrs) = split_image_alt(&raw_alt);
-                let is_fullpage = attrs.split_whitespace()
+                let is_fullpage = attrs
+                    .split_whitespace()
                     .any(|a| a == ".fullpage" || a == "fullpage");
-                let is_chapter = attrs.split_whitespace()
+                let is_chapter = attrs
+                    .split_whitespace()
                     .any(|a| a == ".chapter" || a == "chapter");
                 // Parse optional width= attribute: width=8cm or width=70%
-                let attr_width: Option<String> = attrs.split_whitespace()
+                let attr_width: Option<String> = attrs
+                    .split_whitespace()
                     .find(|a| a.starts_with("width="))
                     .map(|a| {
                         let v = &a["width=".len()..];
-                        if v.ends_with('%') {
-                            let pct: f64 = v[..v.len()-1].parse().unwrap_or(100.0);
+                        if let Some(pct_str) = v.strip_suffix('%') {
+                            let pct: f64 = pct_str.parse().unwrap_or(100.0);
                             format!("{:.4}\\hsize", pct / 100.0)
                         } else {
                             v.to_owned()
@@ -907,10 +1053,7 @@ impl Context {
                             path.display()
                         ));
                     } else {
-                        out.push_str(&format!(
-                            "\\centimage{{{width}}}{{{}}}\n",
-                            path.display()
-                        ));
+                        out.push_str(&format!("\\centimage{{{width}}}{{{}}}\n", path.display()));
                         if self.captions && !alt.is_empty() {
                             out.push_str(&format!("\\caption/f {alt}\n"));
                         }
@@ -919,22 +1062,28 @@ impl Context {
             }
             TagEnd::TableHead => {
                 self.in_table_head = false;
-                out.push_str(" \\crli\n"); // horizontal rule below the header row
+                if self.in_longtable {
+                    out.push_str(" \\cr\\noalign{\\smallskip\\hrule\\smallskip}\n");
+                } else {
+                    out.push_str(" \\crli\n");
+                }
             }
             TagEnd::TableRow => {
                 out.push_str(" \\cr\n");
             }
             TagEnd::TableCell => {
-                match self.col_alignments.get(self.col_index) {
-                    Some(Alignment::Center) => out.push_str(" \\hfil"),
-                    _ => {}
+                if let Some(Alignment::Center) = self.col_alignments.get(self.col_index) {
+                    out.push_str(" \\hfil");
                 }
                 self.col_index += 1;
             }
             TagEnd::Table => {
-                // \noalign{\smallskip\hrule} adds the bottom rule; closing \hfil\par\medskip
-                // finishes the centred paragraph and adds trailing vertical space.
-                out.push_str("\\noalign{\\smallskip\\hrule}\n}\\par\\medskip\n\n");
+                if self.in_longtable {
+                    out.push_str("\\noalign{\\smallskip\\hrule}\n}\n\\par\\medskip\n\n");
+                    self.in_longtable = false;
+                } else {
+                    out.push_str("\\noalign{\\smallskip\\hrule}\n}\\par\\medskip\n\n");
+                }
                 if self.captions {
                     self.after_table = true;
                 }
@@ -949,7 +1098,7 @@ fn heading_cmd(level: HeadingLevel) -> &'static str {
         HeadingLevel::H1 => "\\chap",
         HeadingLevel::H2 => "\\sec",
         HeadingLevel::H3 => "\\secc",
-        _                => "\\seccc",
+        _ => "\\seccc",
     }
 }
 
@@ -958,10 +1107,9 @@ fn heading_depth(level: HeadingLevel) -> u32 {
         HeadingLevel::H1 => 1,
         HeadingLevel::H2 => 2,
         HeadingLevel::H3 => 3,
-        _                => 4,
+        _ => 4,
     }
 }
-
 
 /// Returns the caption body if `text` starts with Pandoc-style caption prefix (`: `),
 /// otherwise `None`.
@@ -980,11 +1128,149 @@ fn extract_yaml_front_matter(markdown: &str) -> (Option<Metadata>, &str) {
         let yaml = &after_open[..close_pos];
         let rest = &after_open[close_pos + 5..]; // skip "\n---\n"
         (Some(Metadata::from_yaml_str(yaml)), rest)
-    } else if after_open.ends_with("\n---") {
-        let yaml = &after_open[..after_open.len() - 4];
+    } else if let Some(yaml) = after_open.strip_suffix("\n---") {
         (Some(Metadata::from_yaml_str(yaml)), "")
     } else {
         (None, markdown)
+    }
+}
+
+/// Emits text containing `\x0F` span sentinels. Normal text is escaped + typo-processed;
+/// sentinel segments (`\x0Fcmd:text\x0F`) are emitted as raw TeX.
+fn emit_text_with_spans(t: &str, out: &mut String) {
+    let parts: Vec<&str> = t.split('\x0F').collect();
+    for (i, part) in parts.iter().enumerate() {
+        if i % 2 == 0 {
+            // Normal text segment
+            if !part.is_empty() {
+                let escaped = tex_escape(part);
+                out.push_str(&typo::apply(&escaped));
+            }
+        } else {
+            // Span sentinel: "cmd:text"
+            if let Some((cmd, text)) = part.split_once(':') {
+                let escaped_text = tex_escape(text);
+                let processed_text = typo::apply(&escaped_text);
+                match cmd {
+                    "sc" => out.push_str(&format!("{{\\caps {processed_text}}}")),
+                    "underline" => out.push_str(&format!("\\underbar{{{processed_text}}}")),
+                    "mark" => out.push_str(&format!("\\highlight{{{processed_text}}}")),
+                    _ => out.push_str(&processed_text),
+                }
+            }
+        }
+    }
+}
+
+/// Builds a `\halign` preamble spec for longtable columns.
+/// Each column uses `\vtop{…}` for paragraph wrapping at equal width.
+fn build_halign_spec(alignments: &[Alignment], n: usize) -> String {
+    let col_width = format!("\\dimexpr(\\hsize - {}em)/{}\\relax", n, n);
+    let mut parts = Vec::new();
+    for (i, align) in alignments.iter().enumerate() {
+        let (pre, post) = match align {
+            Alignment::Center => ("\\hfil ", " \\hfil"),
+            Alignment::Right => ("\\hfill ", ""),
+            _ => ("", ""),
+        };
+        let tabskip = if i + 1 < n {
+            "\\tabskip=1em"
+        } else {
+            "\\tabskip=0pt"
+        };
+        parts.push(format!(
+            "\\vtop{{\\hsize={col_width}\\noindent\\strut{pre}#\\strut{post}}}{tabskip}"
+        ));
+    }
+    // Pad if alignments is shorter than n
+    while parts.len() < n {
+        let tabskip = if parts.len() + 1 < n {
+            "\\tabskip=1em"
+        } else {
+            "\\tabskip=0pt"
+        };
+        parts.push(format!(
+            "\\vtop{{\\hsize={col_width}\\noindent\\strut#\\strut}}{tabskip}"
+        ));
+    }
+    format!("\\tabskip=0pt plus1fil{}", parts.join("&\n  "))
+}
+
+/// Pre-processes table attribute lines `{.longtable}` from markdown.
+/// Returns `(cleaned_markdown, longtable_flags)` where `longtable_flags[i]` is true
+/// if the i-th table should be rendered as a longtable.
+fn preprocess_table_attrs(input: &str) -> (String, Vec<bool>) {
+    let lines: Vec<&str> = input.lines().collect();
+    let mut out_lines = Vec::with_capacity(lines.len());
+    let mut flags: Vec<bool> = Vec::new();
+    let mut skip_next = false;
+
+    for (i, &line) in lines.iter().enumerate() {
+        if skip_next {
+            skip_next = false;
+            continue;
+        }
+        let trimmed = line.trim();
+        // Detect `{.longtable}` or `{.longtable ...}` on a line by itself
+        if trimmed.starts_with('{') && trimmed.ends_with('}') {
+            let inner = &trimmed[1..trimmed.len() - 1].trim();
+            if inner.split_whitespace().any(|a| a == ".longtable") {
+                // Check if this follows a table (look backward for last non-empty line being a table row)
+                let prev_non_empty = lines[..i].iter().rev().find(|l| !l.trim().is_empty());
+                if let Some(prev) = prev_non_empty
+                    && (prev.trim().starts_with('|') || prev.trim().ends_with('|'))
+                {
+                    // Mark the last table as longtable
+                    if let Some(last) = flags.last_mut() {
+                        *last = true;
+                    }
+                    // Skip this attribute line
+                    continue;
+                }
+            }
+        }
+        // Track table starts: a line starting with `|` that follows a non-table line
+        if trimmed.starts_with('|') {
+            let prev_non_empty = out_lines
+                .iter()
+                .rev()
+                .find(|l: &&String| !l.trim().is_empty());
+            let prev_is_table = prev_non_empty
+                .map(|l: &String| l.trim().starts_with('|'))
+                .unwrap_or(false);
+            if !prev_is_table {
+                // New table starts
+                flags.push(false);
+            }
+        }
+        out_lines.push(line.to_string());
+    }
+
+    // Reconstruct with original line endings
+    let result = if input.ends_with('\n') {
+        out_lines.join("\n") + "\n"
+    } else {
+        out_lines.join("\n")
+    };
+    (result, flags)
+}
+
+/// Splits a fenced code block info string into `(language, attrs)`.
+/// E.g. `python {.numberLines startFrom="5"}` → `("python", ".numberLines startFrom=\"5\"")`.
+fn split_code_block_attrs(info: &str) -> (&str, &str) {
+    let trimmed = info.trim();
+    if let Some(brace_pos) = trimmed.find('{') {
+        let lang = trimmed[..brace_pos].trim();
+        let rest = &trimmed[brace_pos..];
+        // Strip outer braces
+        let attrs = rest
+            .strip_prefix('{')
+            .and_then(|s| s.strip_suffix('}'))
+            .unwrap_or(rest)
+            .trim();
+        (lang, attrs)
+    } else {
+        (trimmed, "")
     }
 }
 
@@ -998,6 +1284,159 @@ fn split_image_alt(raw: &str) -> (&str, &str) {
     }
 }
 
+/// Pre-processes Pandoc-style span attributes `[text]{.class}` before pulldown-cmark parsing.
+///
+/// Converts `[text]{.smallcaps}` → `\x0Fsc:text\x0F`, etc.
+/// The `\x0F` (ASCII SI) sentinels are detected in the text handler and emitted as raw TeX.
+fn preprocess_span_attrs(input: &str) -> String {
+    let mut result_lines: Vec<String> = Vec::new();
+    let mut in_fenced = false;
+    let mut fence_marker = String::new();
+
+    for line in input.split('\n') {
+        if in_fenced {
+            result_lines.push(line.to_string());
+            let trimmed = line.trim();
+            if trimmed.starts_with(&fence_marker)
+                && trimmed[fence_marker.len()..]
+                    .chars()
+                    .all(|c| c == '`' || c.is_whitespace())
+            {
+                in_fenced = false;
+            }
+            continue;
+        }
+        // Detect fenced code block opening
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("```") {
+            let bt_count = trimmed.chars().take_while(|&c| c == '`').count();
+            fence_marker = "`".repeat(bt_count);
+            in_fenced = true;
+            result_lines.push(line.to_string());
+            continue;
+        }
+        // Process spans on this line
+        let chars: Vec<char> = line.chars().collect();
+        let mut out = String::with_capacity(line.len());
+        let mut i = 0;
+        while i < chars.len() {
+            // Skip inline code
+            if chars[i] == '`' {
+                let bt_start = i;
+                while i < chars.len() && chars[i] == '`' {
+                    i += 1;
+                }
+                let bt_count = i - bt_start;
+                // emit opening backticks
+                for _ in 0..bt_count {
+                    out.push('`');
+                }
+                // find matching closing backticks
+                loop {
+                    if i >= chars.len() {
+                        break;
+                    }
+                    let peek_start = i;
+                    let mut peek_count = 0;
+                    while i < chars.len() && chars[i] == '`' {
+                        peek_count += 1;
+                        i += 1;
+                    }
+                    if peek_count == bt_count {
+                        for _ in 0..bt_count {
+                            out.push('`');
+                        }
+                        break;
+                    }
+                    if peek_count > 0 {
+                        let text: String = chars[peek_start..i].iter().collect();
+                        out.push_str(&text);
+                    } else {
+                        out.push(chars[i]);
+                        i += 1;
+                    }
+                }
+                continue;
+            }
+            if chars[i] == '['
+                && let Some((consumed, replacement)) = try_parse_span_with_attrs(&chars, i)
+            {
+                out.push_str(&replacement);
+                i += consumed;
+                continue;
+            }
+            out.push(chars[i]);
+            i += 1;
+        }
+        result_lines.push(out);
+    }
+    result_lines.join("\n")
+}
+
+/// Attempts to parse `[text]{.class}` at position `start` (position of `[`).
+/// Returns `(chars_consumed, replacement_text)` on success.
+fn try_parse_span_with_attrs(chars: &[char], start: usize) -> Option<(usize, String)> {
+    let mut i = start + 1; // skip '['
+
+    // Collect text up to matching ']'
+    let text_start = i;
+    let mut depth = 1usize;
+    while i < chars.len() {
+        match chars[i] {
+            '\\' => i += 1,
+            '[' => depth += 1,
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    break;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    if chars.get(i) != Some(&']') {
+        return None;
+    }
+    let text: String = chars[text_start..i].iter().collect();
+    i += 1; // skip ']'
+
+    // Must have '{' immediately after ']' (not '(' which is a link)
+    if chars.get(i) != Some(&'{') {
+        return None;
+    }
+    i += 1; // skip '{'
+
+    // Collect attrs up to '}'
+    let attrs_start = i;
+    while i < chars.len() && chars[i] != '}' {
+        i += 1;
+    }
+    if chars.get(i) != Some(&'}') {
+        return None;
+    }
+    let attrs: String = chars[attrs_start..i].iter().collect();
+    let attrs = attrs.trim();
+    i += 1; // skip '}'
+
+    if attrs.is_empty() {
+        return None;
+    }
+
+    // Map known classes to TeX sentinel markers
+    let tex_cmd = if attrs.split_whitespace().any(|a| a == ".smallcaps") {
+        Some("sc")
+    } else if attrs.split_whitespace().any(|a| a == ".underline") {
+        Some("underline")
+    } else if attrs.split_whitespace().any(|a| a == ".mark") {
+        Some("mark")
+    } else {
+        None
+    };
+
+    tex_cmd.map(|cmd| (i - start, format!("\x0F{}:{}\x0F", cmd, text)))
+}
+
 /// Pre-processes Pandoc-style image attribute syntax before pulldown-cmark parsing.
 ///
 /// Transforms `![alt](url){attrs}` → `![alt\x0Eattrs](url)`, encoding the attribute
@@ -1008,12 +1447,13 @@ fn preprocess_image_attrs(input: &str) -> String {
     let chars: Vec<char> = input.chars().collect();
     let mut i = 0;
     while i < chars.len() {
-        if chars[i] == '!' && chars.get(i + 1) == Some(&'[') {
-            if let Some((consumed, replacement)) = try_parse_image_with_attrs(&chars, i) {
-                out.push_str(&replacement);
-                i += consumed;
-                continue;
-            }
+        if chars[i] == '!'
+            && chars.get(i + 1) == Some(&'[')
+            && let Some((consumed, replacement)) = try_parse_image_with_attrs(&chars, i)
+        {
+            out.push_str(&replacement);
+            i += consumed;
+            continue;
         }
         out.push(chars[i]);
         i += 1;
@@ -1033,17 +1473,26 @@ fn try_parse_image_with_attrs(chars: &[char], start: usize) -> Option<(usize, St
         match chars[i] {
             '\\' => i += 1,
             '[' => depth += 1,
-            ']' => { depth -= 1; if depth == 0 { break; } }
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    break;
+                }
+            }
             _ => {}
         }
         i += 1;
     }
-    if chars.get(i) != Some(&']') { return None; }
+    if chars.get(i) != Some(&']') {
+        return None;
+    }
     let alt: String = chars[alt_start..i].iter().collect();
     i += 1; // skip ']'
 
     // Must have '('
-    if chars.get(i) != Some(&'(') { return None; }
+    if chars.get(i) != Some(&'(') {
+        return None;
+    }
     i += 1; // skip '('
 
     // Collect URL up to matching ')'
@@ -1053,17 +1502,26 @@ fn try_parse_image_with_attrs(chars: &[char], start: usize) -> Option<(usize, St
         match chars[i] {
             '\\' => i += 1,
             '(' => depth += 1,
-            ')' => { depth -= 1; if depth == 0 { break; } }
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    break;
+                }
+            }
             _ => {}
         }
         i += 1;
     }
-    if chars.get(i) != Some(&')') { return None; }
+    if chars.get(i) != Some(&')') {
+        return None;
+    }
     let url: String = chars[url_start..i].iter().collect();
     i += 1; // skip ')'
 
     // Check for '{' immediately after ')'
-    if chars.get(i) != Some(&'{') { return None; }
+    if chars.get(i) != Some(&'{') {
+        return None;
+    }
     i += 1; // skip '{'
 
     // Collect attrs up to '}'
@@ -1071,12 +1529,16 @@ fn try_parse_image_with_attrs(chars: &[char], start: usize) -> Option<(usize, St
     while i < chars.len() && chars[i] != '}' {
         i += 1;
     }
-    if chars.get(i) != Some(&'}') { return None; }
+    if chars.get(i) != Some(&'}') {
+        return None;
+    }
     let attrs: String = chars[attrs_start..i].iter().collect();
     let attrs = attrs.trim().to_string();
     i += 1; // skip '}'
 
-    if attrs.is_empty() { return None; }
+    if attrs.is_empty() {
+        return None;
+    }
 
     Some((i - start, format!("![{}\x0E{}]({})", alt, attrs, url)))
 }
@@ -1092,7 +1554,10 @@ fn measure_image(path: &Path, dpi: u32) -> String {
             }
         }
         Err(_) => {
-            eprintln!("Warning: cannot measure image '{}', using \\hsize", path.display());
+            eprintln!(
+                "Warning: cannot measure image '{}', using \\hsize",
+                path.display()
+            );
             "\\hsize".to_owned()
         }
     }

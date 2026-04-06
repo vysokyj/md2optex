@@ -285,11 +285,11 @@ md2optex podporuje Pandoc-kompatibilní syntaxi atributů `{#id .třída klíč=
 
 | Element | Syntaxe | Příklad | md2optex |
 |---------|---------|---------|:--------:|
-| Nadpisy | `# Text {attrs}` | `# Úvod {#intro .unnumbered}` | --- |
-| Code blocks | `` ```lang {attrs} `` | `` ```python {.numberLines startFrom="10"} `` | --- |
+| Nadpisy | `# Text {attrs}` | `# Úvod {#intro .unnumbered}` | **ano** |
+| Code blocks | `` ```lang {attrs} `` | `` ```python {.numberLines startFrom="10"} `` | **ano** |
 | Obrázky | `![alt](url){attrs}` | `![Foto](f.png){width=8cm}` | **ano** |
-| Tabulky | `{attrs}` na řádku za tabulkou | `{.longtable}` | --- |
-| Spans | `[text]{attrs}` | `[text]{.smallcaps}` | --- |
+| Tabulky | `{attrs}` na řádku za tabulkou | `{.longtable}` | **ano** |
+| Spans | `[text]{attrs}` | `[text]{.smallcaps}` | **ano** |
 | Divs | `::: {attrs}` … `:::` | `::: {.warning}` | --- |
 | Inline code | `` `code`{attrs} `` | `` `x`{.python} `` | --- |
 | Odkazy | `[text](url){attrs}` | `[link](url){target=_blank}` | --- |
@@ -300,16 +300,16 @@ md2optex podporuje Pandoc-kompatibilní syntaxi atributů `{#id .třída klíč=
 
 | Atribut | Popis | md2optex |
 |---------|-------|:--------:|
-| `#id` | Identifikátor (label, kotva) | --- |
-| `.unnumbered` nebo `-` | Potlačí číslování | --- |
-| `.unlisted` | Vyloučí z obsahu (TOC) | --- |
+| `#id` | Identifikátor (label, kotva) | **ano** |
+| `.unnumbered` nebo `-` | Potlačí číslování | **ano** |
+| `.unlisted` | Vyloučí z obsahu (TOC) | **ano** |
 
 **Code blocks:**
 
 | Atribut | Popis | md2optex |
 |---------|-------|:--------:|
-| `.numberLines` / `.number-lines` | Číslování řádků | --- |
-| `startFrom="N"` | Počáteční číslo řádku | --- |
+| `.numberLines` / `.number-lines` | Číslování řádků | **ano** |
+| `startFrom="N"` | Počáteční číslo řádku | **ano** |
 | `.lineAnchors` / `.line-anchors` | Klikatelné kotvy řádků (HTML) | --- |
 
 **Obrázky:**
@@ -324,16 +324,16 @@ md2optex podporuje Pandoc-kompatibilní syntaxi atributů `{#id .třída klíč=
 
 | Atribut | Popis | md2optex |
 |---------|-------|:--------:|
-| `.longtable` | Tabulka s lomením přes stránky | --- |
+| `.longtable` | Tabulka s lomením přes stránky | **ano** |
 | `#id` | Label pro odkaz | --- |
 
 **Spans a inline formátování:**
 
 | Atribut | Popis | md2optex |
 |---------|-------|:--------:|
-| `.smallcaps` | Kapitálky | --- |
-| `.underline` | Podtržení | --- |
-| `.mark` | Zvýraznění | --- |
+| `.smallcaps` | Kapitálky | **ano** |
+| `.underline` | Podtržení | **ano** |
+| `.mark` | Zvýraznění | **ano** |
 | `{=format}` | Raw obsah pro daný formát | --- |
 
 ### Rozšíření md2optex (nad rámec Pandoc)

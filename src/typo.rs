@@ -24,12 +24,12 @@ fn fix_ellipsis(s: &str) -> String {
 fn fix_dashes(s: &str) -> String {
     // Spaced variants first — both ASCII and Unicode, with non-breaking space
     let s = s.replace(" \u{2014} ", "~--- "); // " — " → ~---
-    let s = s.replace(" \u{2013} ", "~-- ");  // " – " → ~--
+    let s = s.replace(" \u{2013} ", "~-- "); // " – " → ~--
     let s = s.replace(" --- ", "~--- ");
     let s = s.replace(" -- ", "~-- ");
     // Bare Unicode dashes (no surrounding spaces)
-    let s = s.replace('\u{2014}', "---");      // — → ---
-    s.replace('\u{2013}', "--")               // – → --
+    let s = s.replace('\u{2014}', "---"); // — → ---
+    s.replace('\u{2013}', "--") // – → --
 }
 
 /// Converts various quotation marks to `\uv{…}`, with full nesting support.
@@ -89,10 +89,10 @@ fn parse_quote_level(chars: &[char], pos: &mut usize, expected_close: Option<cha
 /// expected closing character; otherwise returns `None`.
 fn quote_open_close(chars: &[char], pos: usize) -> Option<char> {
     match chars[pos] {
-        '„' => Some('\u{201C}'), // „ (U+201E) → " (Czech double)
-        '\u{201C}' => Some('\u{201D}'),        // " → " (English curly double)
-        '\u{201A}' => Some('\u{2019}'),        // ‚ → ' (Czech single / inner)
-        '\u{2018}' => Some('\u{2019}'),        // ' → ' (English curly single)
+        '„' => Some('\u{201C}'),        // „ (U+201E) → " (Czech double)
+        '\u{201C}' => Some('\u{201D}'), // " → " (English curly double)
+        '\u{201A}' => Some('\u{2019}'), // ‚ → ' (Czech single / inner)
+        '\u{2018}' => Some('\u{2019}'), // ' → ' (English curly single)
         // ASCII double: opens only when preceded by whitespace or at start
         '"' if is_before_content(chars, pos) => Some('"'),
         _ => None,
@@ -111,9 +111,7 @@ fn is_quote_close(chars: &[char], pos: usize, expected: char) -> bool {
     match expected {
         // Czech „ opener: accept " U+201C, " U+201D, or ASCII " after content
         '\u{201C}' => {
-            c == '\u{201C}'
-                || c == '\u{201D}'
-                || (c == '"' && !is_before_content(chars, pos))
+            c == '\u{201C}' || c == '\u{201D}' || (c == '"' && !is_before_content(chars, pos))
         }
         // ASCII opener: close with ASCII " after content
         '"' => c == '"' && !is_before_content(chars, pos),
@@ -134,8 +132,7 @@ fn is_before_content(chars: &[char], pos: usize) -> bool {
 fn fix_nbsp(s: &str) -> String {
     // Prepositions and conjunctions of length 1–2 characters
     static PATTERNS: &[&str] = &[
-        "ve ", "ze ", "se ", "ke ", "ku ",
-        "v ", "z ", "s ", "k ", "u ", "o ", "i ", "a ",
+        "ve ", "ze ", "se ", "ke ", "ku ", "v ", "z ", "s ", "k ", "u ", "o ", "i ", "a ",
     ];
 
     let mut result = s.to_owned();
@@ -206,7 +203,10 @@ mod tests {
         // „ (U+201E) … " (U+201C) — traditional Czech
         assert_eq!(fix_quotes("„ahoj\u{201C}"), r"\uv{ahoj}");
         // „ (U+201E) … " (ASCII) — user types „ then closes with " key
-        assert_eq!(fix_quotes(r#"„Poslouchej svůj hlas.""#), r"\uv{Poslouchej svůj hlas.}");
+        assert_eq!(
+            fix_quotes(r#"„Poslouchej svůj hlas.""#),
+            r"\uv{Poslouchej svůj hlas.}"
+        );
         // „ (U+201E) … " (U+201D) — modern editor auto-pairing
         assert_eq!(fix_quotes("„ahoj\u{201D}"), r"\uv{ahoj}");
         // with em-dash inside
@@ -232,7 +232,10 @@ mod tests {
     #[test]
     fn test_quotes_ascii_nested() {
         // ASCII double with ASCII double nested (context-driven)
-        assert_eq!(fix_quotes(r#""outer "inner" text""#), r"\uv{outer \uv{inner} text}");
+        assert_eq!(
+            fix_quotes(r#""outer "inner" text""#),
+            r"\uv{outer \uv{inner} text}"
+        );
     }
 
     #[test]

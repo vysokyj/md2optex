@@ -277,32 +277,15 @@ Pokud soubor nelze přečíst, konvertor skončí s chybou (ne tichým fallbacke
 - `nonum`/`toc_depth`: style `book` → `\nonum` on all headings, `toc_depth=1` (chapters only)
 - Hyphenation dictionary → `\hyphenation{}` block
 - Image path prefix: `paths.images` applied when resolving relative image paths
-- Integration tests: 43 tests in `tests/render.rs`
+- Integration tests: 69 tests in `tests/render.rs`
+- Pandoc-compatible attributes: headings (`{.unnumbered}`, `{.unlisted}`, `{#id}`), code blocks (`{.numberLines}`, `startFrom="N"`), tables (`{.longtable}`), images (`{width=...}`), spans (`{.smallcaps}`, `{.underline}`, `{.mark}`)
 
 ### Missing / not yet implemented
 
-#### Pandoc-compatible attribute blocks
-
-Pandoc-compatible `{...}` attribute syntax for extending Markdown elements with metadata.
-Pulldown-cmark does not parse these — we must detect and strip them ourselves (post-processing).
-
-**Syntax:** `{#id .class key=value}` — identifiers, classes, key-value pairs.
-
-**Planned support by element:**
-
-| Element | Placement | Example | Use case |
-|---------|-----------|---------|----------|
-| Tables | Line after table | `{.longtable}` | Long tables that break across pages |
-| Images | After `)` | `![alt](img.png){width=50%}` | Explicit image sizing |
-| Headings | End of line | `# Title {.unnumbered}` | Suppress numbering |
-| Code blocks | After fence | `` ```python {.numberLines} `` | Line numbers, highlighting |
-| Spans | After `]` | `[text]{.smallcaps}` | Inline formatting |
-| Divs | After `:::` | `::: {.warning}` | Custom block containers |
-
-**Implementation priority:**
-1. Tables — `{.longtable}` → use `\halign` instead of `\table` to allow page breaks
-2. Images — `{width=...}` → override computed width
-3. Headings — `{.unnumbered}` → `\nonum`
+#### Pandoc-compatible attributes (not yet implemented)
+- [ ] **Divs** — `::: {.warning}` … `:::` — custom block containers
+- [ ] **Inline code attrs** — `` `code`{.python} ``
+- [ ] **Link attrs** — `[text](url){target=_blank}`
 
 #### Renderer / Typo
 - [ ] **Nested single quotes** — `‚vnitřní'` (U+201A / U+2018) → `\uv{vnitřní}`

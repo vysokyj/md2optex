@@ -85,22 +85,29 @@ impl Metadata {
                 let key = key.trim();
                 let val = val.trim().trim_matches('"').trim_matches('\'');
                 match key {
-                    "title"         => title      = Some(val.to_string()),
-                    "author"        => author     = Some(val.to_string()),
-                    "year" | "date" => year       = val.split('-').next()
-                                            .and_then(|y| y.trim().parse().ok()),
-                    "isbn"          => isbn       = Some(val.to_string()),
-                    "style"         => style_name = Some(val.to_string()),
-                    _               => {}
+                    "title" => title = Some(val.to_string()),
+                    "author" => author = Some(val.to_string()),
+                    "year" | "date" => {
+                        year = val.split('-').next().and_then(|y| y.trim().parse().ok())
+                    }
+                    "isbn" => isbn = Some(val.to_string()),
+                    "style" => style_name = Some(val.to_string()),
+                    _ => {}
                 }
             }
         }
 
-        let has_book = title.is_some() || author.is_some()
-            || year.is_some() || isbn.is_some();
+        let has_book = title.is_some() || author.is_some() || year.is_some() || isbn.is_some();
         Metadata {
             book: if has_book {
-                Some(Book { title, author, year, isbn, toc: None, copyright: None })
+                Some(Book {
+                    title,
+                    author,
+                    year,
+                    isbn,
+                    toc: None,
+                    copyright: None,
+                })
             } else {
                 None
             },

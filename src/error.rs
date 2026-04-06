@@ -21,7 +21,11 @@ impl fmt::Display for Error {
                 write!(f, "Chapters directory not found: {}", p.display())
             }
             Error::HyphenationDict(p, e) => {
-                write!(f, "Cannot read hyphenation dictionary '{}': {e}", p.display())
+                write!(
+                    f,
+                    "Cannot read hyphenation dictionary '{}': {e}",
+                    p.display()
+                )
             }
             Error::StyleNotFound(s) => write!(f, "Style '{s}' not found"),
         }

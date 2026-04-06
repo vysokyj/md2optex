@@ -135,25 +135,36 @@ fn image_with_base_dir_uses_absolute_path() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
     let out = md2optex::renderer::render_body("![alt](sample.png)", 96, Some(&dir), None);
     // Path should be absolute (starts with /)
-    assert!(out.contains("/examples/sample.png"), "expected absolute path in: {out}");
+    assert!(
+        out.contains("/examples/sample.png"),
+        "expected absolute path in: {out}"
+    );
     // Image is 1024px wide → > 15 cm at 96 DPI → \hsize
-    assert!(out.contains("\\centimage{\\hsize}"), "expected \\hsize for wide image in: {out}");
+    assert!(
+        out.contains("\\centimage{\\hsize}"),
+        "expected \\hsize for wide image in: {out}"
+    );
 }
 
 #[test]
 fn image_without_base_dir_keeps_path() {
     let out = md2optex::renderer::render_body("![alt](img/photo.png)", 96, None, None);
-    assert!(out.contains("\\centimage{\\hsize}{img/photo.png}"), "expected original path in: {out}");
+    assert!(
+        out.contains("\\centimage{\\hsize}{img/photo.png}"),
+        "expected original path in: {out}"
+    );
 }
 
 #[test]
 fn image_with_images_dir_resolves_via_images_dir() {
     let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let images_dir = base.join("examples");
-    let out = md2optex::renderer::render_body(
-        "![alt](sample.png)", 96, Some(base), Some(&images_dir),
+    let out =
+        md2optex::renderer::render_body("![alt](sample.png)", 96, Some(base), Some(&images_dir));
+    assert!(
+        out.contains("/examples/sample.png"),
+        "expected images_dir path in: {out}"
     );
-    assert!(out.contains("/examples/sample.png"), "expected images_dir path in: {out}");
 }
 
 // ── Tables ───────────────────────────────────────────────────────────────────
@@ -329,8 +340,14 @@ fn body_captions(md: &str) -> String {
 fn table_caption_pandoc_style() {
     let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\n: Výsledky měření\n";
     let out = body_captions(md);
-    assert!(out.contains(r"\caption/t Výsledky měření"), "expected \\caption/t, got: {out}");
-    assert!(!out.contains(": Výsledky"), "colon prefix should be stripped, got: {out}");
+    assert!(
+        out.contains(r"\caption/t Výsledky měření"),
+        "expected \\caption/t, got: {out}"
+    );
+    assert!(
+        !out.contains(": Výsledky"),
+        "colon prefix should be stripped, got: {out}"
+    );
 }
 
 #[test]
@@ -344,15 +361,24 @@ fn table_caption_colon_only() {
 fn table_caption_no_prefix_emits_paragraph() {
     let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\nNormální text.\n";
     let out = body_captions(md);
-    assert!(!out.contains(r"\caption/t"), "should not emit caption, got: {out}");
-    assert!(out.contains("Normální text."), "paragraph should be present, got: {out}");
+    assert!(
+        !out.contains(r"\caption/t"),
+        "should not emit caption, got: {out}"
+    );
+    assert!(
+        out.contains("Normální text."),
+        "paragraph should be present, got: {out}"
+    );
 }
 
 #[test]
 fn table_caption_not_emitted_without_captions_mode() {
     let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\n: Výsledky\n";
     let out = body(md);
-    assert!(!out.contains(r"\caption/t"), "caption should not appear without captions mode, got: {out}");
+    assert!(
+        !out.contains(r"\caption/t"),
+        "caption should not appear without captions mode, got: {out}"
+    );
 }
 
 // ── Math ─────────────────────────────────────────────────────────────────────
@@ -375,7 +401,10 @@ fn raw_tex_block_passthrough() {
     let md = "```tex\n\\vfil\\eject\n```\n";
     let out = body(md);
     assert!(out.contains("\\vfil\\eject"), "got: {out}");
-    assert!(!out.contains("\\begtt"), "should not wrap in begtt, got: {out}");
+    assert!(
+        !out.contains("\\begtt"),
+        "should not wrap in begtt, got: {out}"
+    );
 }
 
 #[test]
@@ -415,4 +444,98 @@ fn definition_list_indented_definition() {
     let out = body(md);
     assert!(out.contains("\\advance\\leftskip by 2em"), "got: {out}");
     assert!(out.contains("\\advance\\leftskip by -2em"), "got: {out}");
+}
+
+// ── Pandoc-compatible attributes ────────────────────────────────────────────
+
+#[test]
+fn heading_unnumbered_attr() {
+    let out = body("## Title {.unnumbered}\n");
+    assert!(out.contains("\\nonum \\sec Title"), "got: {out}");
+}
+
+#[test]
+fn heading_unnumbered_shorthand() {
+    let out = body("## Title {.-}\n");
+    assert!(out.contains("\\nonum \\sec Title"), "got: {out}");
+}
+
+#[test]
+fn heading_unlisted_attr() {
+    let out = body("## Title {.unlisted}\n");
+    assert!(out.contains("\\notoc \\sec Title"), "got: {out}");
+}
+
+#[test]
+fn heading_id_attr() {
+    let out = body("## Title {#my-id}\n");
+    assert!(out.contains("\\label[my-id]"), "got: {out}");
+}
+
+#[test]
+fn code_block_number_lines() {
+    let md = "```python {.numberLines}\ndef f():\n    pass\n```\n";
+    let out = body(md);
+    assert!(out.contains("\\ttline=1 \\begtt"), "got: {out}");
+    assert!(out.contains("\\ttline=-1"), "reset after endtt, got: {out}");
+}
+
+#[test]
+fn code_block_number_lines_start_from() {
+    let md = "```rust {.numberLines startFrom=\"10\"}\nlet x = 1;\n```\n";
+    let out = body(md);
+    assert!(out.contains("\\ttline=10 \\begtt"), "got: {out}");
+}
+
+#[test]
+fn code_block_without_attrs_no_ttline() {
+    let md = "```rust\nlet x = 1;\n```\n";
+    let out = body(md);
+    assert!(!out.contains("\\ttline"), "got: {out}");
+}
+
+#[test]
+fn table_longtable_uses_halign() {
+    let md = "| A | B |\n|---|---|\n| 1 | 2 |\n\n{.longtable}\n";
+    let out = body(md);
+    assert!(out.contains("\\halign"), "should use \\halign, got: {out}");
+    assert!(
+        !out.contains("\\table"),
+        "should not use \\table, got: {out}"
+    );
+}
+
+#[test]
+fn table_without_longtable_uses_table() {
+    let md = "| A | B |\n|---|---|\n| 1 | 2 |\n";
+    let out = body(md);
+    assert!(out.contains("\\table"), "should use \\table, got: {out}");
+    assert!(
+        !out.contains("\\halign"),
+        "should not use \\halign, got: {out}"
+    );
+}
+
+#[test]
+fn span_smallcaps() {
+    let out = body("[text]{.smallcaps}\n");
+    assert!(out.contains("{\\caps text}"), "got: {out}");
+}
+
+#[test]
+fn span_underline() {
+    let out = body("[word]{.underline}\n");
+    assert!(out.contains("\\underbar{word}"), "got: {out}");
+}
+
+#[test]
+fn span_mark() {
+    let out = body("[highlighted]{.mark}\n");
+    assert!(out.contains("\\highlight{highlighted}"), "got: {out}");
+}
+
+#[test]
+fn span_in_sentence() {
+    let out = body("Before [caps]{.smallcaps} after.\n");
+    assert!(out.contains("Before {\\caps caps} after."), "got: {out}");
 }

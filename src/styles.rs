@@ -28,7 +28,10 @@ pub fn resolve(name: &str, base_dir: Option<&Path>) -> Option<String> {
 
     // 2. User config directory (~/.config/md2optex/styles/)
     if let Some(config) = user_config_dir() {
-        let user = config.join("md2optex").join("styles").join(format!("{name}.tex"));
+        let user = config
+            .join("md2optex")
+            .join("styles")
+            .join(format!("{name}.tex"));
         if user.exists()
             && let Ok(content) = fs::read_to_string(&user)
         {

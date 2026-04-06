@@ -261,3 +261,62 @@ Obrázek se automaticky změří a vloží do sazby:
 ![Ukázkový obrázek](sample.png)
 
 Pokud soubor neexistuje, vypíše se varování na stderr a použije se `\picw=\hsize`.
+
+## Pandoc-kompatibilní atributy
+
+### Atributy nadpisů
+
+#### Nečíslovaný nadpis {.unnumbered}
+
+Tento nadpis nemá číslo, protože má atribut `{.unnumbered}`.
+
+#### Nadpis mimo obsah {.unlisted}
+
+Tento nadpis se nezobrazí v obsahu dokumentu.
+
+#### Nadpis s identifikátorem {#muj-nadpis}
+
+Na tento nadpis se lze odkázat pomocí `\ref[muj-nadpis]`.
+
+### Číslované bloky kódu
+
+Kód s číslováním řádků:
+
+```python {.numberLines}
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n - 1) + fibonacci(n - 2)
+```
+
+Kód s číslováním od řádku 10:
+
+```rust {.numberLines startFrom="10"}
+fn main() {
+    let x = 42;
+    println!("Odpověď: {}", x);
+}
+```
+
+### Longtable (tabulka přes stránky)
+
+Tabulka ASCII znaků je příliš dlouhá, aby se vešla na jednu stránku.
+Přidáním `{.longtable}` za tabulku povolíme její zalomení přes stránky:
+
+| Dec | Hex | Znak | Popis |
+|----:|----:|:----:|:------|
+| 33 | 21 | ! | Vykřičník |
+| 34 | 22 | " | Uvozovka |
+| 35 | 23 | # | Křížek |
+| 36 | 24 | $ | Dolar |
+| 37 | 25 | % | Procento |
+| 38 | 26 | & | Ampersand |
+| 39 | 27 | ' | Apostrof |
+| 40 | 28 | ( | Levá závorka |
+| 41 | 29 | ) | Pravá závorka |
+| 42 | 2A | * | Hvězdička |
+{.longtable}
+
+### Span atributy
+
+Text s [kapitálkami]{.smallcaps} a [podtrženým slovem]{.underline} a [zvýrazněným textem]{.mark} ve větě.
