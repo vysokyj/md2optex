@@ -1175,16 +1175,24 @@ fn emit_text_with_spans(t: &str, out: &mut String) {
 }
 
 /// Returns the column width TeX expression for column `i` of `n`.
-/// If custom widths are provided, uses fraction of `\hsize`; otherwise equal distribution.
+/// If custom widths are provided, uses a proportional fraction of the available
+/// space (`\hsize` minus inter-column tabskip glue).
 fn col_width_expr(i: usize, n: usize, col_widths: &Option<Vec<f64>>) -> String {
     if let Some(widths) = col_widths
         && let Some(&w) = widths.get(i)
     {
-        // Format without unnecessary trailing zeros: 0.2, 0.35, 0.333
-        let s = format!("{:.4}", w);
-        let s = s.trim_end_matches('0');
-        let s = s.trim_end_matches('.');
-        return format!("{}\\hsize", s);
+        // Available space = \hsize - (n-1)*1em (tabskip gaps).
+        // Column width = w * available = w*\hsize - w*(n-1)em.
+        let gaps = n.saturating_sub(1);
+        let tabskip_share = w * gaps as f64;
+        let fmt = |v: f64| {
+            let s = format!("{:.4}", v);
+            let s = s.trim_end_matches('0');
+            s.trim_end_matches('.').to_string()
+        };
+        let w_str = fmt(w);
+        let t_str = fmt(tabskip_share);
+        return format!("\\dimexpr {w_str}\\hsize-{t_str}em\\relax");
     }
     format!("\\dimexpr(\\hsize - {}em)/{}\\relax", n, n)
 }
@@ -1215,7 +1223,7 @@ fn build_halign_spec(
         let tabskip = if i + 1 < n {
             "\\tabskip=1em"
         } else {
-            "\\tabskip=0pt"
+            "\\tabskip=0pt plus1fil"
         };
         parts.push(format!(
             "\\vtop{{\\hsize={width}\\noindent\\strut{pre}#\\strut{post}}}{tabskip}"
@@ -1227,13 +1235,13 @@ fn build_halign_spec(
         let tabskip = if parts.len() + 1 < n {
             "\\tabskip=1em"
         } else {
-            "\\tabskip=0pt"
+            "\\tabskip=0pt plus1fil"
         };
         parts.push(format!(
             "\\vtop{{\\hsize={width}\\noindent\\strut#\\strut}}{tabskip}"
         ));
     }
-    format!("\\tabskip=0pt plus1fil{}", parts.join("&\n  "))
+    format!("\\tabskip=0pt{}", parts.join("&\n  "))
 }
 
 /// Checks if a line is a GFM table separator row (e.g. `|:---|---:|:---:|`).

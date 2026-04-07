@@ -510,15 +510,15 @@ fn table_col_widths_derived_from_separator() {
     // Separator |-----|--------------------|---------| has cells of length 5, 20, 9 → proportional
     let md = "| A | B | C |\n|-----|--------------------|---------|\n| 1 | 2 | 3 |\n";
     let out = body(md);
-    // Should NOT use equal-width formula
+    // Should NOT use equal-width formula (which has /N pattern)
     assert!(
-        !out.contains("\\dimexpr"),
+        !out.contains("/3\\relax"),
         "should use derived widths, not equal formula, got: {out}"
     );
-    // Should contain proportional \hsize values
+    // Should contain proportional \hsize values with tabskip subtraction
     assert!(
-        out.contains("\\hsize"),
-        "should use \\hsize widths, got: {out}"
+        out.contains("\\hsize-"),
+        "should use proportional \\hsize widths, got: {out}"
     );
 }
 
