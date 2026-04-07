@@ -246,6 +246,7 @@ Kompletní tabulka tisknutelných ASCII znaků (32--126) s kódem, znakem, popis
 | 124 | 7C | 174 | \| | Vertical line | Symbol |
 | 125 | 7D | 175 | } | Right curly bracket | Bracket |
 | 126 | 7E | 176 | ~ | Tilde | Symbol |
+{.longtable}
 
 ## Poznámky pod čarou
 
