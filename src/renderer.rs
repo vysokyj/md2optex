@@ -328,9 +328,12 @@ fn build_preamble(
     // vertical fill, title (via \tit), author in italics, vertical fill, page break.
     s.push_str("\\def\\maketitle{\\bgroup\\footline={}\\headline={}\\vglue0pt plus1fill\\centerline{{\\typosize[18/22]\\bf\\thetitle}}\\medskip\\centerline{{\\it\\theauthor}}\\vglue0pt plus2fill\\eject\\egroup}\n");
     // \strike is not built into OpTeX; draw a mid-height rule over the text.
-    s.push_str("\\def\\strike#1{\\leavevmode\\setbox0=\\hbox{#1}\\hbox{\\copy0\\kern-\\wd0\\vrule height0.55em depth-0.45em width\\wd0}}\n");
-    // \highlight: yellow background highlight (for [text]{.mark} spans).
-    s.push_str("\\def\\highlight#1{\\leavevmode\\setbox0=\\hbox{#1}\\dimen0=\\ht0\\advance\\dimen0 by 1pt\\dimen1=\\dp0\\advance\\dimen1 by 1pt\\hbox{\\vrule height\\dimen0 depth\\dimen1 width0pt\\pdfliteral{q 1 1 0 rg}\\vrule height\\dimen0 depth\\dimen1 width\\wd0\\pdfliteral{Q}\\kern-\\wd0\\box0}}\n");
+    s.push_str("\\def\\strike#1{\\leavevmode\\bgroup\\setbox0=\\hbox{#1}\\rlap{\\vrule height0.55em depth-0.45em width\\wd0}\\unhbox0\\egroup}\n");
+    // \textunderline: underline using \rlap + \unhbox so it doesn't eat surrounding spaces
+    // (plain TeX \underbar uses math mode which breaks inter-word spacing).
+    s.push_str("\\def\\textunderline#1{\\leavevmode\\bgroup\\setbox0=\\hbox{#1}\\rlap{\\lower1.5pt\\vbox{\\kern\\ht0\\kern\\dp0\\kern0.5pt\\hrule width\\wd0 height0.4pt}}\\unhbox0\\egroup}\n");
+    // \highlight: yellow background highlight using \rlap + \unhbox (no \hbox wrapper).
+    s.push_str("\\def\\highlight#1{\\leavevmode\\bgroup\\setbox0=\\hbox{#1}\\dimen0=\\ht0\\advance\\dimen0 by 1pt\\dimen1=\\dp0\\advance\\dimen1 by 1pt\\rlap{\\pdfliteral{q 1 1 0 rg}\\vrule height\\dimen0 depth\\dimen1 width\\wd0\\pdfliteral{Q}}\\unhbox0\\egroup}\n");
     // \tsuper / \tsub: text-mode superscript / subscript via math mode with roman font.
     s.push_str("\\def\\tsuper#1{$^{\\rm #1}$}\n");
     s.push_str("\\def\\tsub#1{$_{\\rm #1}$}\n");
@@ -1165,7 +1168,7 @@ fn emit_text_with_spans(t: &str, out: &mut String) {
                 let processed_text = typo::apply(&escaped_text);
                 match cmd {
                     "sc" => out.push_str(&format!("{{\\caps {processed_text}}}")),
-                    "underline" => out.push_str(&format!("\\underbar{{{processed_text}}}")),
+                    "underline" => out.push_str(&format!("\\textunderline{{{processed_text}}}")),
                     "mark" => out.push_str(&format!("\\highlight{{{processed_text}}}")),
                     _ => out.push_str(&processed_text),
                 }

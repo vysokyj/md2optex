@@ -554,7 +554,7 @@ fn span_smallcaps() {
 #[test]
 fn span_underline() {
     let out = body("[word]{.underline}\n");
-    assert!(out.contains("\\underbar{word}"), "got: {out}");
+    assert!(out.contains("\\textunderline{word}"), "got: {out}");
 }
 
 #[test]
