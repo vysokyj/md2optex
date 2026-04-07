@@ -325,6 +325,7 @@ md2optex podporuje Pandoc-kompatibilní syntaxi atributů `{#id .třída klíč=
 | Atribut | Popis | md2optex |
 |---------|-------|:--------:|
 | `.longtable` | Tabulka s lomením přes stránky | **ano** |
+| `colwidths="X% Y%"` | Šířky sloupců v procentech | **ano** |
 | `#id` | Label pro odkaz | --- |
 
 **Spans a inline formátování:**

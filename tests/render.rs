@@ -506,6 +506,40 @@ fn table_longtable_uses_halign() {
 }
 
 #[test]
+fn table_colwidths_regular() {
+    let md = "| A | B | C |\n|---|---|---|\n| 1 | 2 | 3 |\n\n{colwidths=\"20% 50% 30%\"}\n";
+    let out = body(md);
+    assert!(
+        out.contains("p{0.2\\hsize}"),
+        "should have 20% column, got: {out}"
+    );
+    assert!(
+        out.contains("p{0.5\\hsize}"),
+        "should have 50% column, got: {out}"
+    );
+    assert!(
+        out.contains("p{0.3\\hsize}"),
+        "should have 30% column, got: {out}"
+    );
+}
+
+#[test]
+fn table_colwidths_longtable() {
+    let md =
+        "| A | B |\n|---|---|\n| 1 | 2 |\n\n{.longtable colwidths=\"40% 60%\"}\n";
+    let out = body(md);
+    assert!(out.contains("\\halign"), "should use halign, got: {out}");
+    assert!(
+        out.contains("\\hsize=0.4\\hsize"),
+        "should have 40% column, got: {out}"
+    );
+    assert!(
+        out.contains("\\hsize=0.6\\hsize"),
+        "should have 60% column, got: {out}"
+    );
+}
+
+#[test]
 fn table_without_longtable_uses_table() {
     let md = "| A | B |\n|---|---|\n| 1 | 2 |\n";
     let out = body(md);

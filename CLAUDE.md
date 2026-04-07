@@ -278,7 +278,7 @@ Pokud soubor nelze přečíst, konvertor skončí s chybou (ne tichým fallbacke
 - Hyphenation dictionary → `\hyphenation{}` block
 - Image path prefix: `paths.images` applied when resolving relative image paths
 - Integration tests: 69 tests in `tests/render.rs`
-- Pandoc-compatible attributes: headings (`{.unnumbered}`, `{.unlisted}`, `{#id}`), code blocks (`{.numberLines}`, `startFrom="N"`), tables (`{.longtable}`), images (`{width=...}`), spans (`{.smallcaps}`, `{.underline}`, `{.mark}`)
+- Pandoc-compatible attributes: headings (`{.unnumbered}`, `{.unlisted}`, `{#id}`), code blocks (`{.numberLines}`, `startFrom="N"`), tables (`{.longtable}`, `colwidths="X% Y%"`), images (`{width=...}`), spans (`{.smallcaps}`, `{.underline}`, `{.mark}`)
 
 ### Missing / not yet implemented
 

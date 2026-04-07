@@ -8,6 +8,14 @@ use crate::metadata::{Metadata, TocValue};
 use crate::styles;
 use crate::typo;
 
+/// Per-table attributes extracted from Pandoc-compatible attribute blocks.
+#[derive(Debug, Clone, Default)]
+struct TableAttrs {
+    longtable: bool,
+    /// Column widths as fractions of `\hsize` (e.g. 0.30 for 30%).
+    col_widths: Option<Vec<f64>>,
+}
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum TocPlacement {
     Front,
@@ -163,7 +171,7 @@ fn render_body_impl(
 
     let preprocessed = preprocess_image_attrs(markdown);
     let preprocessed = preprocess_span_attrs(&preprocessed);
-    let (preprocessed, longtable_flags) = preprocess_table_attrs(&preprocessed);
+    let (preprocessed, table_attrs) = preprocess_table_attrs(&preprocessed);
     let markdown = preprocessed.as_str();
     let footnotes = collect_footnotes(markdown, opts);
     let parser = Parser::new_ext(markdown, opts);
@@ -175,7 +183,7 @@ fn render_body_impl(
         toc_depth,
         captions,
         footnotes,
-        longtable_flags,
+        table_attrs,
     );
     let mut out = String::new();
 
@@ -532,12 +540,14 @@ struct Context {
     pending_label: Option<String>,
     /// True when the current code block has line numbering enabled (\ttline).
     code_numbered: bool,
-    /// Pre-scanned longtable flags: true for each table (in order) that has `{.longtable}`.
-    longtable_flags: Vec<bool>,
-    /// Index into longtable_flags, incremented for each table encountered.
+    /// Pre-scanned table attributes for each table (in order).
+    table_attrs: Vec<TableAttrs>,
+    /// Index into table_attrs, incremented for each table encountered.
     table_index: usize,
     /// True if the currently rendering table is a longtable.
     in_longtable: bool,
+    /// Column widths (fractions of \hsize) for the current table, if specified.
+    current_col_widths: Option<Vec<f64>>,
 }
 
 impl Context {
@@ -550,7 +560,7 @@ impl Context {
         toc_depth: u32,
         captions: bool,
         footnotes: HashMap<String, String>,
-        longtable_flags: Vec<bool>,
+        table_attrs: Vec<TableAttrs>,
     ) -> Self {
         Self {
             dpi,
@@ -589,9 +599,10 @@ impl Context {
             part_buf: String::new(),
             pending_label: None,
             code_numbered: false,
-            longtable_flags,
+            table_attrs,
             table_index: 0,
             in_longtable: false,
+            current_col_widths: None,
         }
     }
 
@@ -845,25 +856,26 @@ impl Context {
                 self.col_alignments = alignments;
                 self.col_index = 0;
                 self.row_count = 0;
-                let is_longtable = self
-                    .longtable_flags
+                let attrs = self
+                    .table_attrs
                     .get(self.table_index)
-                    .copied()
-                    .unwrap_or(false);
-                self.in_longtable = is_longtable;
+                    .cloned()
+                    .unwrap_or_default();
+                self.in_longtable = attrs.longtable;
+                self.current_col_widths = attrs.col_widths;
                 self.table_index += 1;
                 let n = self.col_alignments.len().max(1);
-                if is_longtable {
+                if self.in_longtable {
                     // Long table using \halign directly (allows page breaks between rows).
-                    let halign_spec = build_halign_spec(&self.col_alignments, n);
+                    let halign_spec =
+                        build_halign_spec(&self.col_alignments, n, &self.current_col_widths);
                     out.push_str(&format!(
                         "\\par\\medskip\n\\halign to\\hsize{{{}\\cr\n\\noalign{{\\hrule\\smallskip}}\n",
                         halign_spec
                     ));
                 } else {
                     // Use p{dim} columns so cell text wraps instead of overflowing.
-                    let col = format!("p{{\\dimexpr(\\hsize - {n}em)/{n}\\relax}}");
-                    let spec: String = std::iter::repeat_n(col, n).collect::<Vec<_>>().join(" ");
+                    let spec = build_table_spec(&self.col_alignments, n, &self.current_col_widths);
                     out.push_str(&format!("\\par\\medskip\\noindent\n\\table{{{spec}}}{{\\noalign{{\\hrule\\smallskip}}\n"));
                 }
             }
@@ -1162,12 +1174,39 @@ fn emit_text_with_spans(t: &str, out: &mut String) {
     }
 }
 
+/// Returns the column width TeX expression for column `i` of `n`.
+/// If custom widths are provided, uses fraction of `\hsize`; otherwise equal distribution.
+fn col_width_expr(i: usize, n: usize, col_widths: &Option<Vec<f64>>) -> String {
+    if let Some(widths) = col_widths
+        && let Some(&w) = widths.get(i)
+    {
+        // Format without unnecessary trailing zeros: 0.2, 0.35, 0.333
+        let s = format!("{:.4}", w);
+        let s = s.trim_end_matches('0');
+        let s = s.trim_end_matches('.');
+        return format!("{}\\hsize", s);
+    }
+    format!("\\dimexpr(\\hsize - {}em)/{}\\relax", n, n)
+}
+
+/// Builds the column spec for a regular `\table{...}` command.
+fn build_table_spec(_alignments: &[Alignment], n: usize, col_widths: &Option<Vec<f64>>) -> String {
+    (0..n)
+        .map(|i| format!("p{{{}}}", col_width_expr(i, n, col_widths)))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Builds a `\halign` preamble spec for longtable columns.
-/// Each column uses `\vtop{…}` for paragraph wrapping at equal width.
-fn build_halign_spec(alignments: &[Alignment], n: usize) -> String {
-    let col_width = format!("\\dimexpr(\\hsize - {}em)/{}\\relax", n, n);
+/// Each column uses `\vtop{…}` for paragraph wrapping.
+fn build_halign_spec(
+    alignments: &[Alignment],
+    n: usize,
+    col_widths: &Option<Vec<f64>>,
+) -> String {
     let mut parts = Vec::new();
     for (i, align) in alignments.iter().enumerate() {
+        let width = col_width_expr(i, n, col_widths);
         let (pre, post) = match align {
             Alignment::Center => ("\\hfil ", " \\hfil"),
             Alignment::Right => ("\\hfill ", ""),
@@ -1179,30 +1218,60 @@ fn build_halign_spec(alignments: &[Alignment], n: usize) -> String {
             "\\tabskip=0pt"
         };
         parts.push(format!(
-            "\\vtop{{\\hsize={col_width}\\noindent\\strut{pre}#\\strut{post}}}{tabskip}"
+            "\\vtop{{\\hsize={width}\\noindent\\strut{pre}#\\strut{post}}}{tabskip}"
         ));
     }
     // Pad if alignments is shorter than n
     while parts.len() < n {
+        let width = col_width_expr(parts.len(), n, col_widths);
         let tabskip = if parts.len() + 1 < n {
             "\\tabskip=1em"
         } else {
             "\\tabskip=0pt"
         };
         parts.push(format!(
-            "\\vtop{{\\hsize={col_width}\\noindent\\strut#\\strut}}{tabskip}"
+            "\\vtop{{\\hsize={width}\\noindent\\strut#\\strut}}{tabskip}"
         ));
     }
     format!("\\tabskip=0pt plus1fil{}", parts.join("&\n  "))
 }
 
-/// Pre-processes table attribute lines `{.longtable}` from markdown.
-/// Returns `(cleaned_markdown, longtable_flags)` where `longtable_flags[i]` is true
-/// if the i-th table should be rendered as a longtable.
-fn preprocess_table_attrs(input: &str) -> (String, Vec<bool>) {
+/// Parses `colwidths="20% 50% 30%"` from an attribute string.
+/// Returns a vector of fractions (e.g. [0.20, 0.50, 0.30]).
+fn parse_colwidths(attrs: &str) -> Option<Vec<f64>> {
+    // Find colwidths="..." in the attribute string
+    let key = "colwidths=";
+    let start = attrs.find(key)?;
+    let rest = &attrs[start + key.len()..];
+    // Accept both quoted and unquoted values
+    let (value, _) = if let Some(stripped) = rest.strip_prefix('"') {
+        let end = stripped.find('"')?;
+        (&stripped[..end], &stripped[end + 1..])
+    } else {
+        let end = rest.find([' ', '}']).unwrap_or(rest.len());
+        (&rest[..end], &rest[end..])
+    };
+    let widths: Vec<f64> = value
+        .split_whitespace()
+        .filter_map(|s| {
+            let s = s.trim_end_matches('%');
+            s.parse::<f64>().ok().map(|v| v / 100.0)
+        })
+        .collect();
+    if widths.is_empty() {
+        None
+    } else {
+        Some(widths)
+    }
+}
+
+/// Pre-processes table attribute lines from markdown.
+/// Returns `(cleaned_markdown, table_attrs)` where `table_attrs[i]` contains
+/// attributes for the i-th table.
+fn preprocess_table_attrs(input: &str) -> (String, Vec<TableAttrs>) {
     let lines: Vec<&str> = input.lines().collect();
     let mut out_lines = Vec::with_capacity(lines.len());
-    let mut flags: Vec<bool> = Vec::new();
+    let mut attrs_list: Vec<TableAttrs> = Vec::new();
     let mut skip_next = false;
 
     for (i, &line) in lines.iter().enumerate() {
@@ -1211,18 +1280,25 @@ fn preprocess_table_attrs(input: &str) -> (String, Vec<bool>) {
             continue;
         }
         let trimmed = line.trim();
-        // Detect `{.longtable}` or `{.longtable ...}` on a line by itself
+        // Detect attribute block `{...}` on a line by itself after a table
         if trimmed.starts_with('{') && trimmed.ends_with('}') {
-            let inner = &trimmed[1..trimmed.len() - 1].trim();
-            if inner.split_whitespace().any(|a| a == ".longtable") {
+            let inner = trimmed[1..trimmed.len() - 1].trim();
+            let has_table_attr = inner.split_whitespace().any(|a| a == ".longtable")
+                || inner.contains("colwidths=");
+            if has_table_attr {
                 // Check if this follows a table (look backward for last non-empty line being a table row)
                 let prev_non_empty = lines[..i].iter().rev().find(|l| !l.trim().is_empty());
                 if let Some(prev) = prev_non_empty
                     && (prev.trim().starts_with('|') || prev.trim().ends_with('|'))
                 {
-                    // Mark the last table as longtable
-                    if let Some(last) = flags.last_mut() {
-                        *last = true;
+                    // Apply attributes to the last table
+                    if let Some(last) = attrs_list.last_mut() {
+                        if inner.split_whitespace().any(|a| a == ".longtable") {
+                            last.longtable = true;
+                        }
+                        if let Some(widths) = parse_colwidths(inner) {
+                            last.col_widths = Some(widths);
+                        }
                     }
                     // Skip this attribute line
                     continue;
@@ -1240,7 +1316,7 @@ fn preprocess_table_attrs(input: &str) -> (String, Vec<bool>) {
                 .unwrap_or(false);
             if !prev_is_table {
                 // New table starts
-                flags.push(false);
+                attrs_list.push(TableAttrs::default());
             }
         }
         out_lines.push(line.to_string());
@@ -1252,7 +1328,7 @@ fn preprocess_table_attrs(input: &str) -> (String, Vec<bool>) {
     } else {
         out_lines.join("\n")
     };
-    (result, flags)
+    (result, attrs_list)
 }
 
 /// Splits a fenced code block info string into `(language, attrs)`.
