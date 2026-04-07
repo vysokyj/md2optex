@@ -150,7 +150,7 @@ Ukázka GFM tabulky se zarovnáním sloupců:
 Kompletní tabulka tisknutelných ASCII znaků (32--126) s kódem, znakem, popisem a kategorií:
 
 | Dec | Hex | Oct | Znak | Popis | Kategorie |
-|----:|----:|----:|:----:|:------|:----------|
+|-------:|-------:|-------:|:-------:|:--------------|:--------------|
 | 32 | 20 | 040 | | Space | Whitespace |
 | 33 | 21 | 041 | ! | Exclamation mark | Punctuation |
 | 34 | 22 | 042 | " | Quotation mark | Punctuation |
