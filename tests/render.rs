@@ -524,6 +524,45 @@ fn table_colwidths_regular() {
 }
 
 #[test]
+fn table_col_widths_derived_from_separator() {
+    // Separator |-----|--------------------|---------| has cells of length 5, 20, 9 → proportional
+    let md = "| A | B | C |\n|-----|--------------------|---------|\n| 1 | 2 | 3 |\n";
+    let out = body(md);
+    // Should NOT use equal-width formula
+    assert!(
+        !out.contains("\\dimexpr"),
+        "should use derived widths, not equal formula, got: {out}"
+    );
+    // Should contain proportional \hsize values
+    assert!(
+        out.contains("\\hsize"),
+        "should use \\hsize widths, got: {out}"
+    );
+}
+
+#[test]
+fn table_col_widths_equal_separator_uses_default() {
+    // All separator cells equal length → use default equal distribution
+    let md = "| A | B | C |\n|---|---|---|\n| 1 | 2 | 3 |\n";
+    let out = body(md);
+    assert!(
+        out.contains("\\dimexpr"),
+        "equal separators should use default formula, got: {out}"
+    );
+}
+
+#[test]
+fn table_explicit_colwidths_overrides_separator() {
+    // Separator has unequal dashes but explicit colwidths should win
+    let md = "| A | B |\n|--|----------|\n| 1 | 2 |\n\n{colwidths=\"50% 50%\"}\n";
+    let out = body(md);
+    assert!(
+        out.contains("p{0.5\\hsize}"),
+        "explicit colwidths should override separator, got: {out}"
+    );
+}
+
+#[test]
 fn table_colwidths_longtable() {
     let md =
         "| A | B |\n|---|---|\n| 1 | 2 |\n\n{.longtable colwidths=\"40% 60%\"}\n";

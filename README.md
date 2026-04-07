@@ -326,7 +326,19 @@ md2optex podporuje Pandoc-kompatibilní syntaxi atributů `{#id .třída klíč=
 |---------|-------|:--------:|
 | `.longtable` | Tabulka s lomením přes stránky | **ano** |
 | `colwidths="X% Y%"` | Šířky sloupců v procentech | **ano** |
+| *(automaticky)* | Šířky odvozené z poměrů pomlček v separátoru | **ano** |
 | `#id` | Label pro odkaz | --- |
+
+Šířky sloupců se odvozují automaticky z délky separátorů v GFM tabulce (à la Pandoc grid tables).
+Pokud jsou separátory výrazně nestejné, šířky se nastaví proporcionálně:
+
+```md
+| Krátký |  Široký sloupec s delším textem  | Střední  |
+|--------|----------------------------------|----------|
+| a      | b                                | c        |
+```
+
+Explicitní `colwidths=` má vždy přednost před automatickým odvozením.
 
 **Spans a inline formátování:**
 

@@ -1265,6 +1265,52 @@ fn parse_colwidths(attrs: &str) -> Option<Vec<f64>> {
     }
 }
 
+/// Checks if a line is a GFM table separator row (e.g. `|:---|---:|:---:|`).
+fn is_separator_row(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed.starts_with('|')
+        && trimmed
+            .chars()
+            .all(|c| c == '|' || c == '-' || c == ':' || c == ' ')
+        && trimmed.contains('-')
+}
+
+/// Derives proportional column widths from cell widths in a separator row.
+/// Uses the total character count of each cell (between `|` delimiters) so that
+/// alignment colons don't skew the result.
+/// Returns `None` if all columns have the same width (use default equal distribution)
+/// or if the widths differ by less than 20% from equal.
+fn derive_col_widths_from_separator(separator: &str) -> Option<Vec<f64>> {
+    let trimmed = separator.trim();
+    // Split by '|', skip empty leading/trailing segments
+    let cells: Vec<&str> = trimmed
+        .split('|')
+        .filter(|s| !s.trim().is_empty())
+        .collect();
+    if cells.len() < 2 {
+        return None;
+    }
+    let char_counts: Vec<usize> = cells.iter().map(|cell| cell.len()).collect();
+    let total: usize = char_counts.iter().sum();
+    if total == 0 {
+        return None;
+    }
+    let n = char_counts.len();
+    let equal_share = 1.0 / n as f64;
+    let widths: Vec<f64> = char_counts
+        .iter()
+        .map(|&c| c as f64 / total as f64)
+        .collect();
+    // Only use proportional widths if at least one column deviates >20% from equal
+    let dominated_by_equal = widths
+        .iter()
+        .all(|&w| (w - equal_share).abs() / equal_share < 0.2);
+    if dominated_by_equal {
+        return None;
+    }
+    Some(widths)
+}
+
 /// Pre-processes table attribute lines from markdown.
 /// Returns `(cleaned_markdown, table_attrs)` where `table_attrs[i]` contains
 /// attributes for the i-th table.
@@ -1273,6 +1319,7 @@ fn preprocess_table_attrs(input: &str) -> (String, Vec<TableAttrs>) {
     let mut out_lines = Vec::with_capacity(lines.len());
     let mut attrs_list: Vec<TableAttrs> = Vec::new();
     let mut skip_next = false;
+    let mut table_line_count = 0usize;
 
     for (i, &line) in lines.iter().enumerate() {
         if skip_next {
@@ -1305,7 +1352,7 @@ fn preprocess_table_attrs(input: &str) -> (String, Vec<TableAttrs>) {
                 }
             }
         }
-        // Track table starts: a line starting with `|` that follows a non-table line
+        // Track table starts and separator rows
         if trimmed.starts_with('|') {
             let prev_non_empty = out_lines
                 .iter()
@@ -1317,7 +1364,20 @@ fn preprocess_table_attrs(input: &str) -> (String, Vec<TableAttrs>) {
             if !prev_is_table {
                 // New table starts
                 attrs_list.push(TableAttrs::default());
+                table_line_count = 1;
+            } else {
+                table_line_count += 1;
+                // Second line of a table — the separator row
+                if table_line_count == 2
+                    && is_separator_row(trimmed)
+                    && let Some(last) = attrs_list.last_mut()
+                    && last.col_widths.is_none()
+                {
+                    last.col_widths = derive_col_widths_from_separator(trimmed);
+                }
             }
+        } else {
+            table_line_count = 0;
         }
         out_lines.push(line.to_string());
     }
