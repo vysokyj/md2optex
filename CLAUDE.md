@@ -277,8 +277,10 @@ Pokud soubor nelze přečíst, konvertor skončí s chybou (ne tichým fallbacke
 - `nonum`/`toc_depth`: style `book` → `\nonum` on all headings, `toc_depth=1` (chapters only)
 - Hyphenation dictionary → `\hyphenation{}` block
 - Image path prefix: `paths.images` applied when resolving relative image paths
-- Integration tests: 69 tests in `tests/render.rs`
+- Integration tests: 73 tests in `tests/render.rs`
 - Pandoc-compatible attributes: headings (`{.unnumbered}`, `{.unlisted}`, `{#id}`), code blocks (`{.numberLines}`, `startFrom="N"`), tables (`{.longtable}`, auto column widths from separator), images (`{width=...}`), spans (`{.smallcaps}`, `{.underline}`, `{.mark}`)
+- Output mode by extension: `-o out.tex` emits TeX, `-o out.pdf` runs `optex` in a tempdir (twice, for TOC) and copies the resulting PDF to the destination
+- Image path strategy: stdout = passthrough, `-o` next to source = relative, `-o` elsewhere = absolute, PDF mode = absolute (tmp cwd)
 
 ### Missing / not yet implemented
 

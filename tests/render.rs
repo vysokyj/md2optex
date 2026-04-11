@@ -131,18 +131,41 @@ fn link() {
 // ── Images ───────────────────────────────────────────────────────────────────
 
 #[test]
-fn image_with_base_dir_uses_absolute_path() {
+fn image_with_base_dir_uses_absolute_path_when_output_elsewhere() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
-    let out = md2optex::renderer::render_body("![alt](sample.png)", 96, Some(&dir), None);
-    // Path should be absolute (starts with /)
+    // Output dir is /tmp (≠ base_dir) → path should be absolute.
+    let out_dir = std::path::PathBuf::from("/tmp");
+    let out = md2optex::renderer::render_body_with_output(
+        "![alt](sample.png)",
+        96,
+        Some(&dir),
+        None,
+        Some(&out_dir),
+    );
     assert!(
         out.contains("/examples/sample.png"),
         "expected absolute path in: {out}"
     );
-    // Image is 1024px wide → > 15 cm at 96 DPI → \hsize
     assert!(
         out.contains("\\centimage{\\hsize}"),
         "expected \\hsize for wide image in: {out}"
+    );
+}
+
+#[test]
+fn image_with_base_dir_uses_relative_when_output_is_base_dir() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
+    // Output dir == base_dir → path should stay relative.
+    let out = md2optex::renderer::render_body_with_output(
+        "![alt](sample.png)",
+        96,
+        Some(&dir),
+        None,
+        Some(&dir),
+    );
+    assert!(
+        out.contains("\\centimage{\\hsize}{sample.png}"),
+        "expected relative path in: {out}"
     );
 }
 
@@ -156,11 +179,29 @@ fn image_without_base_dir_keeps_path() {
 }
 
 #[test]
+fn image_stdout_passthrough_keeps_path() {
+    // render_body passes output_dir=None → Passthrough, path kept as-is
+    // even when base_dir is provided.
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
+    let out = md2optex::renderer::render_body("![alt](sample.png)", 96, Some(&dir), None);
+    assert!(
+        out.contains("\\centimage{\\hsize}{sample.png}"),
+        "expected passthrough path in: {out}"
+    );
+}
+
+#[test]
 fn image_with_images_dir_resolves_via_images_dir() {
     let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let images_dir = base.join("examples");
-    let out =
-        md2optex::renderer::render_body("![alt](sample.png)", 96, Some(base), Some(&images_dir));
+    let out_dir = std::path::PathBuf::from("/tmp");
+    let out = md2optex::renderer::render_body_with_output(
+        "![alt](sample.png)",
+        96,
+        Some(base),
+        Some(&images_dir),
+        Some(&out_dir),
+    );
     assert!(
         out.contains("/examples/sample.png"),
         "expected images_dir path in: {out}"
@@ -533,7 +574,6 @@ fn table_col_widths_equal_separator_uses_default() {
     );
 }
 
-
 #[test]
 fn table_without_longtable_uses_table() {
     let md = "| A | B |\n|---|---|\n| 1 | 2 |\n";
@@ -554,7 +594,7 @@ fn span_smallcaps() {
 #[test]
 fn span_underline() {
     let out = body("[word]{.underline}\n");
-    assert!(out.contains("\\textunderline{word}"), "got: {out}");
+    assert!(out.contains("\\underbar{word}"), "got: {out}");
 }
 
 #[test]

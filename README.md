@@ -31,7 +31,10 @@ Arguments:
   [INPUT]  Vstupní Markdown soubor nebo adresář s knihou (výchozí: stdin)
 
 Options:
-  -o, --output <FILE>           Výstupní TeX soubor (výchozí: stdout)
+  -o, --output <FILE>           Výstupní soubor. Přípona určuje režim:
+                                  .tex → TeX zdroj
+                                  .pdf → přímo PDF (md2optex spustí optex sám)
+                                (výchozí: TeX na stdout)
       --hyphenation-dict <FILE> Slovník dělení slov
       --dpi <N>                 Rozlišení obrázků pro výpočet fyzické velikosti [výchozí: 96]
       --style <NAME>            Přepis stylu (minimal | book | academic | manual, nebo cesta)
@@ -42,27 +45,46 @@ Options:
 ### Příklady
 
 ```bash
-# Jeden soubor → stdout
+# Jeden soubor → stdout (cesty k obrázkům se nepřepisují)
 md2optex dokument.md
 
-# Soubor → soubor
+# Soubor → TeX vedle zdroje (relativní cesty k obrázkům)
 md2optex dokument.md -o dokument.tex
+
+# Soubor → TeX jinam (absolutní cesty k obrázkům)
+md2optex dokument.md -o /tmp/build/dokument.tex
+
+# Soubor → přímo PDF (md2optex zavolá `optex` v dočasném adresáři)
+md2optex dokument.md -o dokument.pdf
 
 # Ze stdin
 cat dokument.md | md2optex -o dokument.tex
 
-# Adresář knihy (viz níže)
+# Adresář knihy (viz níže) → TeX nebo PDF
 md2optex kniha/ -o kniha.tex
+md2optex kniha/ -o kniha.pdf
 
 # Se slovníkem dělení slov
 md2optex dokument.md --hyphenation-dict hyphenation.txt
 
 # Přepis stylu z příkazové řádky
 md2optex dokument.md --style academic
-
-# Kompilace do PDF
-optex dokument.tex
 ```
+
+### Cesty k obrázkům
+
+md2optex vybírá strategii podle toho, kam jde výstup:
+
+- **Bez `-o`** (stdout) — cesty k obrázkům zůstávají přesně tak, jak jsou
+  napsané v MD. Uživatel si odpovídá za to, že optex je v příštím kroku
+  najde.
+- **`-o out.tex` vedle zdroje** (`parent(out.tex)` == adresář zdroje) —
+  cesty jsou **relativní**, TeX zůstane přenositelný a čitelný.
+- **`-o out.tex` jinam** — cesty se rozvinou na **absolutní**, aby TeX
+  fungoval z libovolného místa.
+- **`-o out.pdf`** — md2optex vygeneruje TeX do dočasného adresáře,
+  spustí `optex` dvakrát (pro TOC) a výsledné PDF zkopíruje na cíl.
+  Dočasný adresář se uklidí automaticky. Vyžaduje `optex` v `PATH`.
 
 ## Mapování Markdown → OpTeX
 

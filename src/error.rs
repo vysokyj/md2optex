@@ -10,6 +10,8 @@ pub enum Error {
     HyphenationDict(PathBuf, io::Error),
     #[allow(dead_code)] // reserved for future style-system implementation
     StyleNotFound(String),
+    OptexNotFound,
+    OptexFailed(i32),
 }
 
 impl fmt::Display for Error {
@@ -28,6 +30,11 @@ impl fmt::Display for Error {
                 )
             }
             Error::StyleNotFound(s) => write!(f, "Style '{s}' not found"),
+            Error::OptexNotFound => write!(
+                f,
+                "`optex` not found in PATH — install OpTeX: https://petr.olsak.net/optex/"
+            ),
+            Error::OptexFailed(code) => write!(f, "optex failed with exit code {code}"),
         }
     }
 }

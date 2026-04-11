@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 clap = { version = "4.6.0", features = ["derive"] }
 imagesize = "0.14.0"
+pathdiff = "0.2"
 pulldown-cmark = "0.13.1"
 serde = { version = "1.0.228", features = ["derive"] }
+tempfile = "3"
 toml = "1.0.6"

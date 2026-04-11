@@ -61,6 +61,7 @@ pub fn render(
     dpi: u32,
     style: Option<&str>,
     base_dir: Option<&Path>,
+    output_dir: Option<&Path>,
 ) -> Result<String, Error> {
     // Extract YAML front matter when no external metadata is provided (single-file mode).
     // yaml_meta_owned must outlive effective_metadata (which may borrow it).
@@ -113,6 +114,7 @@ pub fn render(
         dpi,
         base_dir,
         images_dir.as_deref(),
+        output_dir,
         nonum,
         toc_depth,
         captions,
@@ -129,6 +131,7 @@ pub fn render(
 
 /// Renders only the document body (no preamble, no `\bye`).
 /// Used by integration tests; uses neutral defaults (no nonum, unlimited TOC depth).
+/// Passes `output_dir = None` → Passthrough mode (image paths unchanged).
 #[allow(dead_code)]
 pub fn render_body(
     markdown: &str,
@@ -136,7 +139,37 @@ pub fn render_body(
     base_dir: Option<&Path>,
     images_dir: Option<&Path>,
 ) -> String {
-    render_body_impl(markdown, dpi, base_dir, images_dir, false, u32::MAX, false)
+    render_body_impl(
+        markdown,
+        dpi,
+        base_dir,
+        images_dir,
+        None,
+        false,
+        u32::MAX,
+        false,
+    )
+}
+
+/// Like `render_body` but with an explicit output_dir (enables path rewrite).
+#[allow(dead_code)]
+pub fn render_body_with_output(
+    markdown: &str,
+    dpi: u32,
+    base_dir: Option<&Path>,
+    images_dir: Option<&Path>,
+    output_dir: Option<&Path>,
+) -> String {
+    render_body_impl(
+        markdown,
+        dpi,
+        base_dir,
+        images_dir,
+        output_dir,
+        false,
+        u32::MAX,
+        false,
+    )
 }
 
 /// Like `render_body` but with captions enabled (academic style convention).
@@ -147,14 +180,25 @@ pub fn render_body_captions(
     base_dir: Option<&Path>,
     images_dir: Option<&Path>,
 ) -> String {
-    render_body_impl(markdown, dpi, base_dir, images_dir, false, u32::MAX, true)
+    render_body_impl(
+        markdown,
+        dpi,
+        base_dir,
+        images_dir,
+        None,
+        false,
+        u32::MAX,
+        true,
+    )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_body_impl(
     markdown: &str,
     dpi: u32,
     base_dir: Option<&Path>,
     images_dir: Option<&Path>,
+    output_dir: Option<&Path>,
     nonum: bool,
     toc_depth: u32,
     captions: bool,
@@ -179,6 +223,7 @@ fn render_body_impl(
         dpi,
         base_dir,
         images_dir,
+        output_dir,
         nonum,
         toc_depth,
         captions,
@@ -327,13 +372,10 @@ fn build_preamble(
     // \maketitle is not built into OpTeX; define it here.
     // vertical fill, title (via \tit), author in italics, vertical fill, page break.
     s.push_str("\\def\\maketitle{\\bgroup\\footline={}\\headline={}\\vglue0pt plus1fill\\centerline{{\\typosize[18/22]\\bf\\thetitle}}\\medskip\\centerline{{\\it\\theauthor}}\\vglue0pt plus2fill\\eject\\egroup}\n");
-    // \strike is not built into OpTeX; draw a mid-height rule over the text.
-    s.push_str("\\def\\strike#1{\\leavevmode\\bgroup\\setbox0=\\hbox{#1}\\rlap{\\vrule height0.55em depth-0.45em width\\wd0}\\unhbox0\\egroup}\n");
-    // \textunderline: underline using \rlap + \unhbox so it doesn't eat surrounding spaces
-    // (plain TeX \underbar uses math mode which breaks inter-word spacing).
-    s.push_str("\\def\\textunderline#1{\\leavevmode\\bgroup\\setbox0=\\hbox{#1}\\rlap{\\lower1.5pt\\vbox{\\kern\\ht0\\kern\\dp0\\kern0.5pt\\hrule width\\wd0 height0.4pt}}\\unhbox0\\egroup}\n");
-    // \highlight: yellow background highlight using \rlap + \unhbox (no \hbox wrapper).
-    s.push_str("\\def\\highlight#1{\\leavevmode\\bgroup\\setbox0=\\hbox{#1}\\dimen0=\\ht0\\advance\\dimen0 by 1pt\\dimen1=\\dp0\\advance\\dimen1 by 1pt\\rlap{\\pdfliteral{q 1 1 0 rg}\\vrule height\\dimen0 depth\\dimen1 width\\wd0\\pdfliteral{Q}}\\unhbox0\\egroup}\n");
+    // \strike: strikethrough using \hbox with \localcolor to avoid space-eating issues.
+    s.push_str("\\def\\strike#1{\\leavevmode\\hbox{\\setbox0=\\hbox{#1}\\localcolor\\Black\\rlap{\\vrule height0.55em depth-0.45em width\\wd0}\\box0}}\n");
+    // \highlight: yellow background highlight using OpTeX \localcolor for correct spacing.
+    s.push_str("\\def\\highlight#1{\\leavevmode\\hbox{\\setbox0=\\hbox{\\kern1pt#1\\kern1pt}\\dimen0=\\ht0\\advance\\dimen0 by1pt\\dimen1=\\dp0\\advance\\dimen1 by1pt\\localcolor\\Yellow\\vrule height\\dimen0 depth\\dimen1 width\\wd0\\kern-\\wd0\\localcolor\\Black\\box0}}\n");
     // \tsuper / \tsub: text-mode superscript / subscript via math mode with roman font.
     s.push_str("\\def\\tsuper#1{$^{\\rm #1}$}\n");
     s.push_str("\\def\\tsub#1{$_{\\rm #1}$}\n");
@@ -487,6 +529,11 @@ struct Context {
     dpi: u32,
     base_dir: Option<PathBuf>,
     images_dir: Option<PathBuf>,
+    /// Directory where the resulting TeX file will live. `None` = Passthrough
+    /// mode: image paths are written verbatim as they appear in the Markdown.
+    /// `Some(dir)` = Rewrite mode: paths are resolved to absolute, or to a
+    /// path relative to `dir` when `dir` equals the source base_dir.
+    output_dir: Option<PathBuf>,
     nonum: bool,
     toc_depth: u32,
     /// Emit \caption/f{alt} after images and \caption/t after tables (academic style).
@@ -559,6 +606,7 @@ impl Context {
         dpi: u32,
         base_dir: Option<&Path>,
         images_dir: Option<&Path>,
+        output_dir: Option<&Path>,
         nonum: bool,
         toc_depth: u32,
         captions: bool,
@@ -569,6 +617,7 @@ impl Context {
             dpi,
             base_dir: base_dir.map(|p| p.to_path_buf()),
             images_dir: images_dir.map(|p| p.to_path_buf()),
+            output_dir: output_dir.map(|p| p.to_path_buf()),
             nonum,
             toc_depth,
             captions,
@@ -609,25 +658,56 @@ impl Context {
         }
     }
 
-    /// Resolves an image path: tries images_dir first, then base_dir.
-    /// Returns an absolute path when possible, otherwise the path as-is.
+    /// Resolves an image path based on path-rewrite mode:
+    ///
+    /// * Passthrough (`output_dir = None`): return the path verbatim. Used
+    ///   when writing to stdout — we don't know where the TeX will live, so
+    ///   we leave the author's path alone.
+    /// * Rewrite (`output_dir = Some(dir)`): produce a path that works from
+    ///   `dir`. If `dir` equals the source `base_dir` (typical single-file
+    ///   "TeX next to MD"), use a clean relative path. Otherwise use
+    ///   an absolute path derived from `base_dir` / `images_dir`.
     fn resolve_image_path(&self, path: &str) -> PathBuf {
         let p = Path::new(path);
+
+        let Some(output_dir) = self.output_dir.as_deref() else {
+            return p.to_path_buf();
+        };
+
         if p.is_absolute() {
             return p.to_path_buf();
         }
-        // Prefer images_dir / path when it exists.
+
+        let abs = self.locate_absolute(p);
+
+        let same_dir = self
+            .base_dir
+            .as_deref()
+            .and_then(|b| std::fs::canonicalize(b).ok())
+            .zip(std::fs::canonicalize(output_dir).ok())
+            .is_some_and(|(b, o)| b == o);
+
+        if same_dir && let Some(abs) = abs.as_deref() {
+            return pathdiff::diff_paths(abs, output_dir).unwrap_or_else(|| abs.to_path_buf());
+        }
+        abs.unwrap_or_else(|| p.to_path_buf())
+    }
+
+    /// Produces an absolute path for a relative image path by joining it with
+    /// `images_dir` (preferred, if it exists) or `base_dir`. Returns `None`
+    /// when neither yields anything usable.
+    fn locate_absolute(&self, p: &Path) -> Option<PathBuf> {
         if let Some(img_dir) = &self.images_dir {
             let candidate = img_dir.join(p);
             if candidate.exists() {
-                return std::fs::canonicalize(&candidate).unwrap_or(candidate);
+                return Some(std::fs::canonicalize(&candidate).unwrap_or(candidate));
             }
         }
         if let Some(base) = &self.base_dir {
             let joined = base.join(p);
-            return std::fs::canonicalize(&joined).unwrap_or(joined);
+            return Some(std::fs::canonicalize(&joined).unwrap_or(joined));
         }
-        p.to_path_buf()
+        None
     }
 
     fn handle_event(&mut self, event: Event, out: &mut String) {
@@ -1168,7 +1248,7 @@ fn emit_text_with_spans(t: &str, out: &mut String) {
                 let processed_text = typo::apply(&escaped_text);
                 match cmd {
                     "sc" => out.push_str(&format!("{{\\caps {processed_text}}}")),
-                    "underline" => out.push_str(&format!("\\textunderline{{{processed_text}}}")),
+                    "underline" => out.push_str(&format!("\\underbar{{{processed_text}}}")),
                     "mark" => out.push_str(&format!("\\highlight{{{processed_text}}}")),
                     _ => out.push_str(&processed_text),
                 }
@@ -1210,11 +1290,7 @@ fn build_table_spec(_alignments: &[Alignment], n: usize, col_widths: &Option<Vec
 
 /// Builds a `\halign` preamble spec for longtable columns.
 /// Each column uses `\vtop{…}` for paragraph wrapping.
-fn build_halign_spec(
-    alignments: &[Alignment],
-    n: usize,
-    col_widths: &Option<Vec<f64>>,
-) -> String {
+fn build_halign_spec(alignments: &[Alignment], n: usize, col_widths: &Option<Vec<f64>>) -> String {
     let mut parts = Vec::new();
     for (i, align) in alignments.iter().enumerate() {
         let width = col_width_expr(i, n, col_widths);

@@ -7,6 +7,7 @@ mod typo;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use clap::Parser;
 
@@ -48,24 +49,127 @@ fn run() -> Result<(), Error> {
 
     let (markdown, metadata) = load_input(&args)?;
     let hyphenation = load_hyphenation(&args, metadata.as_ref())?;
-    let base_dir: Option<std::path::PathBuf> = args.input.as_ref().and_then(|p| {
-        let dir = if p.is_dir() { p.as_path() } else { p.parent()? };
+    let base_dir: Option<PathBuf> = args.input.as_ref().and_then(|p| {
+        let dir: &Path = if p.is_dir() {
+            p.as_path()
+        } else {
+            match p.parent() {
+                Some(parent) if !parent.as_os_str().is_empty() => parent,
+                // Input is a bare filename like "doc.md" — parent is "".
+                // Interpret as current working directory.
+                _ => Path::new("."),
+            }
+        };
         fs::canonicalize(dir).ok()
     });
-    let tex = renderer::render(
-        &markdown,
-        metadata.as_ref(),
-        &hyphenation,
-        args.dpi,
-        args.style.as_deref(),
-        base_dir.as_deref(),
-    )?;
 
-    match &args.output {
-        Some(path) => fs::write(path, tex)?,
-        None => io::stdout().write_all(tex.as_bytes())?,
+    // Determine output mode based on `-o` file extension.
+    let output_mode = match &args.output {
+        None => OutputMode::Stdout,
+        Some(path) => {
+            let ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_ascii_lowercase());
+            if ext.as_deref() == Some("pdf") {
+                OutputMode::Pdf(path.clone())
+            } else {
+                OutputMode::Tex(path.clone())
+            }
+        }
+    };
+
+    match output_mode {
+        OutputMode::Stdout => {
+            let tex = renderer::render(
+                &markdown,
+                metadata.as_ref(),
+                &hyphenation,
+                args.dpi,
+                args.style.as_deref(),
+                base_dir.as_deref(),
+                None,
+            )?;
+            io::stdout().write_all(tex.as_bytes())?;
+        }
+        OutputMode::Tex(path) => {
+            let output_dir = resolve_output_dir(&path)?;
+            let tex = renderer::render(
+                &markdown,
+                metadata.as_ref(),
+                &hyphenation,
+                args.dpi,
+                args.style.as_deref(),
+                base_dir.as_deref(),
+                Some(&output_dir),
+            )?;
+            fs::write(&path, tex)?;
+        }
+        OutputMode::Pdf(path) => {
+            let tmp = tempfile::Builder::new().prefix("md2optex-").tempdir()?;
+            let tmp_dir = fs::canonicalize(tmp.path())?;
+            let tex = renderer::render(
+                &markdown,
+                metadata.as_ref(),
+                &hyphenation,
+                args.dpi,
+                args.style.as_deref(),
+                base_dir.as_deref(),
+                Some(&tmp_dir),
+            )?;
+            let tex_path = tmp_dir.join("doc.tex");
+            fs::write(&tex_path, tex)?;
+            run_optex(&tmp_dir, "doc.tex")?;
+            // Ensure parent of output PDF exists.
+            if let Some(parent) = path.parent()
+                && !parent.as_os_str().is_empty()
+            {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(tmp_dir.join("doc.pdf"), &path)?;
+        }
     }
 
+    Ok(())
+}
+
+enum OutputMode {
+    Stdout,
+    Tex(PathBuf),
+    Pdf(PathBuf),
+}
+
+/// Resolves the directory where the output TeX file will live. Creates the
+/// parent directory if missing so that `canonicalize` succeeds.
+fn resolve_output_dir(output: &Path) -> Result<PathBuf, Error> {
+    let parent = output.parent().filter(|p| !p.as_os_str().is_empty());
+    let dir: PathBuf = match parent {
+        Some(p) => p.to_path_buf(),
+        None => PathBuf::from("."),
+    };
+    fs::create_dir_all(&dir)?;
+    Ok(fs::canonicalize(&dir)?)
+}
+
+/// Runs `optex <tex_name>` in `work_dir`. Runs twice so the TOC / cross-refs
+/// resolve on the second pass.
+fn run_optex(work_dir: &Path, tex_name: &str) -> Result<(), Error> {
+    for _ in 0..2 {
+        let status = Command::new("optex")
+            .arg(tex_name)
+            .current_dir(work_dir)
+            .status()
+            .map_err(|e| {
+                if e.kind() == io::ErrorKind::NotFound {
+                    Error::OptexNotFound
+                } else {
+                    Error::Io(e)
+                }
+            })?;
+        if !status.success() {
+            return Err(Error::OptexFailed(status.code().unwrap_or(-1)));
+        }
+    }
     Ok(())
 }
 
