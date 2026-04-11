@@ -608,3 +608,202 @@ fn span_in_sentence() {
     let out = body("Before [caps]{.smallcaps} after.\n");
     assert!(out.contains("Before {\\caps caps} after."), "got: {out}");
 }
+
+// ── Book style features ─────────────────────────────────────────────────────
+
+use md2optex::metadata::{Book, Metadata, Typesetting};
+use md2optex::renderer::{render, render_body_book};
+
+fn book_meta(mut ts: Typesetting, mut book: Book) -> Metadata {
+    // Fill in a minimal book so front-matter pipeline emits everything.
+    if book.title.is_none() {
+        book.title = Some("The Test".to_string());
+    }
+    if book.author.is_none() {
+        book.author = Some("A. U. Thor".to_string());
+    }
+    if ts.paper.is_none() {
+        ts.paper = Some("b5".to_string());
+    }
+    Metadata {
+        book: Some(book),
+        typesetting: Some(ts),
+        paths: None,
+        style: None,
+    }
+}
+
+fn empty_ts() -> Typesetting {
+    Typesetting {
+        paper: None,
+        font: None,
+        base_size: None,
+        paragraph: None,
+        margin_left: None,
+        margin_right: None,
+        margin_top: None,
+        margin_bottom: None,
+        header: None,
+        footer: None,
+        toc_depth: None,
+        drop_cap: None,
+        canon: None,
+    }
+}
+
+fn empty_book() -> Book {
+    Book {
+        title: None,
+        author: None,
+        year: Some(2026),
+        isbn: Some("978-80-000-0000-0".to_string()),
+        toc: None,
+        copyright: None,
+        half_title: None,
+    }
+}
+
+#[test]
+fn book_drop_cap_default_enabled() {
+    let out = render_body_book("# Chapter\n\nFirst paragraph here.", 96);
+    assert!(
+        out.contains("\\IC{F}"),
+        "expected drop cap on first letter, got: {out}"
+    );
+}
+
+#[test]
+fn book_drop_cap_can_be_disabled() {
+    let meta = book_meta(
+        Typesetting {
+            drop_cap: Some(false),
+            ..empty_ts()
+        },
+        empty_book(),
+    );
+    let out = render(
+        "# Chapter\n\nFirst paragraph here.",
+        Some(&meta),
+        &[],
+        96,
+        Some("book"),
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(
+        !out.contains("\\IC{F}"),
+        "drop_cap=false must not emit \\IC, got: {out}"
+    );
+}
+
+#[test]
+fn non_book_style_has_no_drop_cap_by_default() {
+    let out = md2optex::renderer::render_body("# Chapter\n\nFirst paragraph here.", 96, None, None);
+    assert!(
+        !out.contains("\\IC{F}"),
+        "non-book style must not emit drop cap, got: {out}"
+    );
+}
+
+#[test]
+fn canon_tschichold_emits_asymmetric_b5_margins() {
+    let meta = book_meta(
+        Typesetting {
+            canon: Some("tschichold".to_string()),
+            ..empty_ts()
+        },
+        empty_book(),
+    );
+    let out = render("text", Some(&meta), &[], 96, Some("book"), None, None).unwrap();
+    assert!(
+        out.contains("\\margins/2 b5 (18,36,22,44)mm"),
+        "expected Tschichold margins, got: {out}"
+    );
+}
+
+#[test]
+fn no_canon_keeps_symmetric_margins() {
+    let meta = book_meta(
+        Typesetting {
+            margin_left: Some(25),
+            margin_right: Some(20),
+            margin_top: Some(25),
+            margin_bottom: Some(25),
+            ..empty_ts()
+        },
+        empty_book(),
+    );
+    let out = render("text", Some(&meta), &[], 96, Some("book"), None, None).unwrap();
+    assert!(
+        out.contains("\\margins/1 b5 (25,20,25,25)mm"),
+        "expected symmetric /1 margins, got: {out}"
+    );
+}
+
+#[test]
+fn book_half_title_default_on() {
+    let meta = book_meta(empty_ts(), empty_book());
+    let out = render("text", Some(&meta), &[], 96, Some("book"), None, None).unwrap();
+    // Half-title block uses \vskip0.3\vsize as its signature.
+    assert!(
+        out.contains("\\vskip0.3\\vsize"),
+        "expected half-title block, got: {out}"
+    );
+    // Half-title must precede the \maketitle *call* (last occurrence; the first
+    // match is the \def in the preamble).
+    let half_pos = out.find("\\vskip0.3\\vsize").unwrap();
+    let title_pos = out.rfind("\\maketitle").unwrap();
+    assert!(
+        half_pos < title_pos,
+        "half-title must come before \\maketitle"
+    );
+}
+
+#[test]
+fn book_half_title_can_be_disabled() {
+    let meta = book_meta(
+        empty_ts(),
+        Book {
+            half_title: Some(false),
+            ..empty_book()
+        },
+    );
+    let out = render("text", Some(&meta), &[], 96, Some("book"), None, None).unwrap();
+    assert!(
+        !out.contains("\\vskip0.3\\vsize"),
+        "half_title=false must not emit half-title block, got: {out}"
+    );
+    // With half-title off, colophon goes to the back of the book.
+    assert!(
+        out.contains("ISBN: 978-80-000-0000-0"),
+        "expected back colophon with ISBN, got: {out}"
+    );
+}
+
+#[test]
+fn book_half_title_moves_colophon_to_verso() {
+    let meta = book_meta(empty_ts(), empty_book());
+    let out = render("text", Some(&meta), &[], 96, Some("book"), None, None).unwrap();
+    // rfind skips the \def\maketitle preamble match.
+    let title_pos = out.rfind("\\maketitle").unwrap();
+    let isbn_pos = out.find("ISBN: 978-80-000-0000-0").unwrap();
+    assert!(
+        isbn_pos > title_pos,
+        "ISBN should be on verso of title (after \\maketitle)"
+    );
+    // With half-title on, back colophon must not be emitted again.
+    let isbn_count = out.matches("ISBN: 978-80-000-0000-0").count();
+    assert_eq!(isbn_count, 1, "colophon emitted twice, got: {out}");
+}
+
+#[test]
+fn non_book_style_no_half_title_by_default() {
+    let meta = book_meta(empty_ts(), empty_book());
+    // Explicitly not passing "book" as style.
+    let out = render("text", Some(&meta), &[], 96, None, None, None).unwrap();
+    assert!(
+        !out.contains("\\vskip0.3\\vsize"),
+        "non-book styles must not emit half-title by default, got: {out}"
+    );
+}

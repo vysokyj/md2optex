@@ -277,10 +277,14 @@ Pokud soubor nelze přečíst, konvertor skončí s chybou (ne tichým fallbacke
 - `nonum`/`toc_depth`: style `book` → `\nonum` on all headings, `toc_depth=1` (chapters only)
 - Hyphenation dictionary → `\hyphenation{}` block
 - Image path prefix: `paths.images` applied when resolving relative image paths
-- Integration tests: 73 tests in `tests/render.rs`
+- Integration tests: 82 tests in `tests/render.rs` + 3 unit tests (tschichold margins) in `renderer.rs`
 - Pandoc-compatible attributes: headings (`{.unnumbered}`, `{.unlisted}`, `{#id}`), code blocks (`{.numberLines}`, `startFrom="N"`), tables (`{.longtable}`, auto column widths from separator), images (`{width=...}`), spans (`{.smallcaps}`, `{.underline}`, `{.mark}`)
 - Output mode by extension: `-o out.tex` emits TeX, `-o out.pdf` runs `optex` in a tempdir (twice, for TOC) and copies the resulting PDF to the destination
 - Image path strategy: stdout = passthrough, `-o` next to source = relative, `-o` elsewhere = absolute, PDF mode = absolute (tmp cwd)
+- `book` style complete book front matter: half-title → title → verso colophon (© + ISBN) → (front TOC if requested) → chapters. `book.half_title = false` disables the polotitul and pushes the colophon back to the end.
+- `book` style drop cap: on by default, opt-out via `typesetting.drop_cap = false`. Gated through `Context.drop_cap_enabled`.
+- `book` style drop folio: first page of every chapter has an empty running header (no title line, no page number), driven by `\ifchappage` flag set in `\_printchap`.
+- Tschichold page canon: `typesetting.canon = "tschichold"` derives asymmetric margins from paper size (inner < outer, top < bottom). Emitted as `\margins/2` (two-sided). Fallback pro neznámé papíry.
 
 ### Missing / not yet implemented
 

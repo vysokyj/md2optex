@@ -13,12 +13,22 @@
 \gdef\thetitle{}
 \gdef\theauthor{}
 
+% Drop-folio flag: set by \_printchap for exactly one shipout so the chapter
+% opener page has an empty running header (and, since the folio lives in the
+% headline, no page number either). The flag is reset the moment \headline is
+% evaluated during that shipout.
+\newif\ifchappage \chappagefalse
+
 % Running headers: even pages — folio + book title; odd pages — chapter title + folio.
 % Footer empty (folio moved to header). Front-matter pages override locally via \bgroup.
-\headline={\ifodd\pageno
-  {\it\botmark}\hfil\folio
+\headline={\ifchappage
+  \global\chappagefalse
 \else
-  \folio\hfil{\it\thetitle}%
+  \ifodd\pageno
+    {\it\botmark}\hfil\folio
+  \else
+    \folio\hfil{\it\thetitle}%
+  \fi
 \fi}
 \footline={}
 
@@ -30,6 +40,8 @@
    \_ifodd\_pageno \_else
       \bgroup\footline={}\headline={}\null\vfil\_supereject\egroup
    \_fi
+   % Drop folio: suppress the running header on the chapter-opening page.
+   \global\chappagetrue
    \_prevdepth=0pt
    \_vglue3\_bigskipamount
    {\_chapfont \_leftskip=0pt plus1fill \_rightskip=\_leftskip

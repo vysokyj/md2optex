@@ -251,7 +251,36 @@ Jednoduchý styl pro rychlý převod bez zvláštních požadavků. A4, Latin Mo
 
 #### `book`
 
-Knižní sazba beletrie nebo prózy. B5, Pagella (Palatino), oboustranné symetrické okraje. Nadpisy jsou bez čísel, obsah se generuje vzadu a obsahuje jen kapitoly (`toc_depth=1`). Kapitoly začínají vždy na liché straně (`openright`). Živá záhlaví: sudá strana — název knihy, lichá strana — název kapitoly. Na konci se vygeneruje tiráž. Vhodný pro romány, povídkové sbírky, monografie.
+Knižní sazba beletrie nebo prózy. „Kniha bez práce" — s rozumnými defaulty, které lze přes `metadata.toml` měnit. B5, Pagella (Palatino), oboustranné symetrické okraje. Nadpisy bez čísel, `toc_depth=1` (obsah jen kapitoly). Kapitoly začínají vždy na liché straně (`openright`). Widow/orphan penalty, `\frenchspacing`, `\emergencystretch`.
+
+**Front matter** (defaultně zapnutý kompletní knihštínský flow):
+
+1. **Polotitul** (half-title) — samostatná první strana jen s názvem, verso prázdné.
+2. **Titulní strana** — název + autor.
+3. **Verso titulní strany** — tiráž (© rok autor, ISBN) místo na konci knihy.
+4. **Obsah** — vzadu (český standard), lze změnit přes `book.toc = "front"`.
+
+**Drop cap** (zvětšené první písmeno první odstavce kapitoly) se generuje automaticky. Pokud u tebe blbne (krátký první odstavec, speciální znaky), vypni ho: `typesetting.drop_cap = false`.
+
+**Drop folio** — na první straně každé kapitoly se netiskne záhlaví ani číslo stránky (standard).
+
+**Živá záhlaví**: sudá strana — `folio` + název knihy, lichá strana — název kapitoly + `folio`.
+
+**Přepínače v metadata.toml** (všechno volitelné, defaulty odpovídají sazbě beletrie):
+
+```toml
+[book]
+half_title = false  # vypne polotitul → verso titulky zůstane prázdné,
+                    # tiráž se přesune zpět na konec knihy
+
+[typesetting]
+drop_cap = false    # vypne drop cap na začátku kapitol
+canon    = "tschichold"  # Tschicholdovo zrcadlo sazby — asymetrické okraje
+                         # odvozené z rozměru papíru (vnitřní < vnější,
+                         # horní < spodní). Přepisuje margin_* hodnoty.
+```
+
+Vhodný pro romány, povídkové sbírky, monografie.
 
 #### `academic`
 

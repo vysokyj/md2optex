@@ -95,6 +95,13 @@ pub fn render(
 
     let is_book = style_name == Some("book");
 
+    // Drop cap: enabled by default for book style, disabled for others;
+    // metadata.toml `typesetting.drop_cap` always wins.
+    let drop_cap_enabled = metadata
+        .and_then(|m| m.typesetting.as_ref())
+        .and_then(|t| t.drop_cap)
+        .unwrap_or(is_book);
+
     let mut out = String::new();
     out.push_str(&build_preamble(
         metadata,
@@ -118,11 +125,18 @@ pub fn render(
         nonum,
         toc_depth,
         captions,
+        drop_cap_enabled,
     ));
     if toc_placement == Some(TocPlacement::Back) {
         out.push_str(&toc_block(TocPlacement::Back));
     }
-    if is_book && let Some(meta) = metadata {
+    // Back colophon is emitted only when no half-title was shown — otherwise
+    // the colophon already sits on the verso of the title page.
+    if is_book
+        && let Some(meta) = metadata
+        && let Some(book) = &meta.book
+        && !book.half_title.unwrap_or(true)
+    {
         out.push_str(&back_colophon_block(meta));
     }
     out.push_str("\n\\bye\n");
@@ -132,6 +146,7 @@ pub fn render(
 /// Renders only the document body (no preamble, no `\bye`).
 /// Used by integration tests; uses neutral defaults (no nonum, unlimited TOC depth).
 /// Passes `output_dir = None` → Passthrough mode (image paths unchanged).
+/// Drop cap is disabled — tests exercising it should use `render_body_book`.
 #[allow(dead_code)]
 pub fn render_body(
     markdown: &str,
@@ -147,6 +162,7 @@ pub fn render_body(
         None,
         false,
         u32::MAX,
+        false,
         false,
     )
 }
@@ -169,6 +185,7 @@ pub fn render_body_with_output(
         false,
         u32::MAX,
         false,
+        false,
     )
 }
 
@@ -189,6 +206,23 @@ pub fn render_body_captions(
         false,
         u32::MAX,
         true,
+        false,
+    )
+}
+
+/// Like `render_body` with drop cap enabled (book-style behaviour).
+#[allow(dead_code)]
+pub fn render_body_book(markdown: &str, dpi: u32) -> String {
+    render_body_impl(
+        markdown,
+        dpi,
+        None,
+        None,
+        None,
+        false,
+        u32::MAX,
+        false,
+        true,
     )
 }
 
@@ -202,6 +236,7 @@ fn render_body_impl(
     nonum: bool,
     toc_depth: u32,
     captions: bool,
+    drop_cap_enabled: bool,
 ) -> String {
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH
@@ -227,6 +262,7 @@ fn render_body_impl(
         nonum,
         toc_depth,
         captions,
+        drop_cap_enabled,
         footnotes,
         table_attrs,
     );
@@ -304,6 +340,37 @@ fn running_line(template: &str) -> String {
         subst(center),
         subst(right)
     )
+}
+
+/// Emits the half-title page (polotitul): centred title only, blank verso.
+/// Headline/footline suppressed via `\bgroup ... \egroup` so running headers
+/// stay clean throughout the front matter.
+fn half_title_block() -> String {
+    let mut s = String::new();
+    s.push_str("\\bgroup\\footline={}\\headline={}\n");
+    // Recto: title centred ~1/3 down the page.
+    s.push_str("\\null\\vskip0.3\\vsize\n");
+    s.push_str("\\centerline{{\\typosize[16/20]\\bf\\thetitle}}\n");
+    s.push_str("\\vfil\\eject\n");
+    // Verso: blank.
+    s.push_str("\\null\\vfil\\eject\n");
+    s.push_str("\\egroup\n");
+    s
+}
+
+/// Returns `(inner, outer, top, bottom)` margins in millimetres for the given
+/// paper size, following Tschichold's canon: asymmetric, outer and bottom
+/// margins larger than inner and top. Supports the paper sizes understood by
+/// OpTeX `\margins`. Unknown papers fall back to generic proportions.
+fn tschichold_margins(paper: &str) -> (u32, u32, u32, u32) {
+    match paper.to_ascii_lowercase().as_str() {
+        // (inner, outer, top, bottom) — proportions 2:3:4:6, derived from canon.
+        "b5" => (18, 36, 22, 44),     // 176×250 mm
+        "a5" => (15, 30, 18, 36),     // 148×210 mm
+        "a4" => (25, 50, 30, 60),     // 210×297 mm
+        "letter" => (22, 44, 26, 52), // 216×279 mm
+        _ => (20, 40, 25, 50),
+    }
 }
 
 /// Generates the back colophon (tiráž) for book style — placed at the very end
@@ -426,15 +493,24 @@ fn build_preamble(
             || ts.margin_right.is_some()
             || ts.margin_top.is_some()
             || ts.margin_bottom.is_some();
-        if has_paper || has_margins {
+        let use_canon = ts.canon.as_deref() == Some("tschichold");
+        if has_paper || has_margins || use_canon {
             let paper = ts.paper.as_deref().unwrap_or("a4");
-            let left = ts.margin_left.unwrap_or(25);
-            let right = ts.margin_right.unwrap_or(25);
-            let top = ts.margin_top.unwrap_or(30);
-            let bottom = ts.margin_bottom.unwrap_or(30);
-            s.push_str(&format!(
-                "\\margins/1 {paper} ({left},{right},{top},{bottom})mm\n"
-            ));
+            if use_canon {
+                let (inner, outer, top, bottom) = tschichold_margins(paper);
+                // /2 = two-sided: first two values are inner/outer margins.
+                s.push_str(&format!(
+                    "\\margins/2 {paper} ({inner},{outer},{top},{bottom})mm\n"
+                ));
+            } else {
+                let left = ts.margin_left.unwrap_or(25);
+                let right = ts.margin_right.unwrap_or(25);
+                let top = ts.margin_top.unwrap_or(30);
+                let bottom = ts.margin_bottom.unwrap_or(30);
+                s.push_str(&format!(
+                    "\\margins/1 {paper} ({left},{right},{top},{bottom})mm\n"
+                ));
+            }
         }
         if let Some(header) = &ts.header {
             s.push_str(&format!("\\headline={{{}}}\n", running_line(header)));
@@ -466,14 +542,25 @@ fn build_preamble(
         if let Some(author) = &book.author {
             s.push_str(&format!("\\gdef\\theauthor{{{author}}}\n"));
         }
+        // Half-title: enabled for book style by default; opt-in for others.
+        // Requires at least a title to show.
+        let half_title_enabled = book.half_title.unwrap_or(is_book) && book.title.is_some();
+        // When half-title is shown, the colophon (copyright / ISBN / rok) moves
+        // to the verso of the full title page instead of the back of the book.
+        let colophon_on_title_verso = half_title_enabled
+            && (book.copyright.is_some() || book.year.is_some() || book.isbn.is_some());
+
+        if half_title_enabled {
+            s.push_str(&half_title_block());
+        }
+
         if book.title.is_some() || book.author.is_some() {
             s.push_str("\\maketitle\n");
-            // Verso of title page (page 2):
-            // - Book style: colophon is deferred to the end (tiráž); emit blank verso.
-            // - Other styles: emit copyright/ISBN here if available, otherwise blank.
-            let has_colophon = !is_book
-                && (book.copyright.is_some() || book.year.is_some() || book.isbn.is_some());
-            if has_colophon {
+            // Verso of title page.
+            let emit_colophon_here = colophon_on_title_verso
+                || (!is_book
+                    && (book.copyright.is_some() || book.year.is_some() || book.isbn.is_some()));
+            if emit_colophon_here {
                 s.push_str("\\bgroup\\footline={}\\headline={}\n");
                 s.push_str("\\null\\vfil\n");
                 if let Some(cr) = &book.copyright {
@@ -578,6 +665,9 @@ struct Context {
     /// Per-nesting-level byte offset in `out` where \begcitation was written.
     /// Used to retroactively replace it with \begdialogue when the first label is detected.
     bq_open_pos: Vec<usize>,
+    /// Drop-cap feature master switch. When `false`, H1 headings do not trigger
+    /// the \IC drop cap on the first paragraph.
+    drop_cap_enabled: bool,
     /// True after H1 heading end, until the first paragraph of the chapter begins.
     drop_cap_pending: bool,
     /// True for the first Text event of the first body paragraph of a chapter.
@@ -610,6 +700,7 @@ impl Context {
         nonum: bool,
         toc_depth: u32,
         captions: bool,
+        drop_cap_enabled: bool,
         footnotes: HashMap<String, String>,
         table_attrs: Vec<TableAttrs>,
     ) -> Self {
@@ -621,6 +712,7 @@ impl Context {
             nonum,
             toc_depth,
             captions,
+            drop_cap_enabled,
             footnotes,
             list_depth: 0,
             in_code_block: false,
@@ -1001,7 +1093,7 @@ impl Context {
                 if let Some(id) = self.pending_label.take() {
                     out.push_str(&format!("\\label[{}]\n", id));
                 }
-                if level == HeadingLevel::H1 {
+                if level == HeadingLevel::H1 && self.drop_cap_enabled {
                     self.drop_cap_pending = true;
                     self.in_drop_cap_para = false;
                 }
@@ -1745,5 +1837,33 @@ fn measure_image(path: &Path, dpi: u32) -> String {
             );
             "\\hsize".to_owned()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tschichold_b5_has_asymmetric_margins() {
+        let (inner, outer, top, bottom) = tschichold_margins("b5");
+        assert!(outer > inner, "outer margin must be larger than inner");
+        assert!(bottom > top, "bottom margin must be larger than top");
+        assert_eq!((inner, outer, top, bottom), (18, 36, 22, 44));
+    }
+
+    #[test]
+    fn tschichold_known_papers() {
+        assert_eq!(tschichold_margins("a5"), (15, 30, 18, 36));
+        assert_eq!(tschichold_margins("a4"), (25, 50, 30, 60));
+        assert_eq!(tschichold_margins("letter"), (22, 44, 26, 52));
+    }
+
+    #[test]
+    fn tschichold_unknown_falls_back() {
+        // Any unknown paper size returns a conservative fallback, not a panic.
+        let (inner, outer, top, bottom) = tschichold_margins("junk");
+        assert!(outer > inner);
+        assert!(bottom > top);
     }
 }
