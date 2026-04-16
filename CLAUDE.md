@@ -150,36 +150,56 @@ Kapitoly se zpracují v abecedním/číselném pořadí názvů souborů. Konver
 
 ### metadata.toml
 
+Schema aligned with the mdf spec (`../mdf/docs/metadata-toml-spec.md`):
+flat top-level identity + `[chapters]`, `[options]`, `[page]`, `[paths]`
+sections, kebab-case keys. All fields optional; unknown fields are ignored.
+
 ```toml
-[book]
+# Document identity
 title  = "Book Title"
 author = "First Last"
-year   = 2026
-isbn   = "978-80-000-0000-0"   # optional
+lang   = "cs"                 # cs | en
+style  = "book"               # minimal | book | academic | manual | path
 
-[typesetting]
-paper     = "a4"        # a4 | b5 | a5 | letter
-font      = "Pagella"   # font family name for \fontfam
-base_size = "11pt"      # base font size
-paragraph = "indent"    # indent | noindent (first paragraph after heading)
+# Bibliographic (optional)
+year       = 2026
+isbn       = "978-80-000-0000-0"
+copyright  = "© 2026 First Last"
+subtitle   = "Subtitle"
+translator = "Translator"
+publisher  = "Publisher"
+edition    = "1st edition"
 
-# margins in mm (optional; defaults applied when paper is set)
-margin_left   = 35
-margin_right  = 25
-margin_top    = 30
-margin_bottom = 30
+[chapters]
+files = ["chapters/01.md", "chapters/02.md"]   # explicit order (optional)
 
-# running headers / footers (optional)
-header = "{author} & {chapter} &"   # left & centre & right
-footer = "& \\folio &"
+[options]
+toc       = "front"           # "off" | "front" | "back" | true | false
+toc-depth = 1
+toc-title = "Obsah"
+drop-cap  = true
+font      = "Pagella"
+widows    = 2
+orphans   = 2
+# md2optex extensions (mdf handles via CSS):
+base-size  = "11pt"
+paragraph  = "noindent"
+header     = "{author} & {title} & {folio}"
+footer     = "& \\folio &"
+half-title = true
+
+[page]
+size   = "A4"                 # A4 | A5 | B5 | Letter
+margin = "25mm"               # CSS shorthand (1-4 values)
+margin-top    = "30mm"        # per-side overrides
+margin-bottom = "30mm"
+margin-left   = "35mm"
+margin-right  = "25mm"
+canon  = "tschichold"         # asymmetric derived margins; overrides margin-*
 
 [paths]
-images      = "images"           # image directory (relative to metadata.toml)
-hyphenation = "hyphenation.txt"  # optional, overrides --hyphenation-dict
-
-[style]
-name = "book"   # built-in: minimal | book | academic | manual
-                # or a path: "./styles/my-style.tex"
+images      = "images"
+hyphenation = "hyphenation.txt"
 ```
 
 ### Styly
@@ -268,23 +288,22 @@ Pokud soubor nelze přečíst, konvertor skončí s chybou (ne tichým fallbacke
 - Typo: Czech quotes (`\uv{}`), dashes (`~--`), non-breaking spaces, ellipsis (`\dots`)
 - Typo: Unicode dashes `–`/`—` → `--`/`---`
 - Book directory input: `metadata.toml` + `chapters/*.md` in alphabetical order
-- Metadata: title, author, year, isbn, copyright, toc (front/back/true/false)
-- Metadata: font, base_size, paper, margins, header, footer, paragraph, toc_depth, paths.images
+- Metadata schema (mdf-compatible): flat top-level (title, author, lang, style, year, isbn, copyright, subtitle, translator, publisher, edition), `[chapters].files`, `[options]` (toc/toc-depth/drop-cap/font/widows/orphans + md2optex extras base-size/paragraph/header/footer/half-title), `[page]` (size, margin shorthand, per-side margin-*, canon), `[paths]` (images, hyphenation). Kebab-case keys; unknown fields ignored.
 - Style system: lookup chain `./styles/` → `~/.config/md2optex/styles/` → built-in
 - Built-in styles: `minimal`, `book`, `academic`, `manual`
 - Front matter: title page (`\maketitle`), colophon/verso, TOC with odd-page guarantee
 - Page numbering reset to 1 after front matter
-- `nonum`/`toc_depth`: style `book` → `\nonum` on all headings, `toc_depth=1` (chapters only)
+- `nonum`/`toc-depth`: style `book` → `\nonum` on all headings, `toc-depth=1` (chapters only)
 - Hyphenation dictionary → `\hyphenation{}` block
 - Image path prefix: `paths.images` applied when resolving relative image paths
-- Integration tests: 82 tests in `tests/render.rs` + 3 unit tests (tschichold margins) in `renderer.rs`
+- Integration tests: 86 tests in `tests/render.rs` + 3 unit tests (tschichold margins) in `renderer.rs`
 - Pandoc-compatible attributes: headings (`{.unnumbered}`, `{.unlisted}`, `{#id}`), code blocks (`{.numberLines}`, `startFrom="N"`), tables (`{.longtable}`, auto column widths from separator), images (`{width=...}`), spans (`{.smallcaps}`, `{.underline}`, `{.mark}`)
 - Output mode by extension: `-o out.tex` emits TeX, `-o out.pdf` runs `optex` in a tempdir (twice, for TOC) and copies the resulting PDF to the destination
 - Image path strategy: stdout = passthrough, `-o` next to source = relative, `-o` elsewhere = absolute, PDF mode = absolute (tmp cwd)
-- `book` style complete book front matter: half-title → title → verso colophon (© + ISBN) → (front TOC if requested) → chapters. `book.half_title = false` disables the polotitul and pushes the colophon back to the end.
-- `book` style drop cap: on by default, opt-out via `typesetting.drop_cap = false`. Gated through `Context.drop_cap_enabled`.
+- `book` style complete book front matter: half-title → title → verso colophon (© + ISBN) → (front TOC if requested) → chapters. `options.half-title = false` disables the polotitul and pushes the colophon back to the end.
+- `book` style drop cap: on by default, opt-out via `options.drop-cap = false`. Gated through `Context.drop_cap_enabled`.
 - `book` style drop folio: first page of every chapter has an empty running header (no title line, no page number), driven by `\ifchappage` flag set in `\_printchap`.
-- Tschichold page canon: `typesetting.canon = "tschichold"` derives asymmetric margins from paper size (inner < outer, top < bottom). Emitted as `\margins/2` (two-sided). Fallback pro neznámé papíry.
+- Tschichold page canon: `page.canon = "tschichold"` derives asymmetric margins from paper size (inner < outer, top < bottom). Emitted as `\margins/2` (two-sided). Fallback pro neznámé papíry.
 
 ### Missing / not yet implemented
 

@@ -177,41 +177,72 @@ style: academic
 ---
 ```
 
-Podporovaná pole: `title`, `author`, `year` (nebo `date`), `isbn`, `style`. Automaticky se vygeneruje titulní strana a záhlaví — stejně jako s `metadata.toml`. V adresářovém režimu (s `metadata.toml`) se YAML front matter ignoruje.
+Podporovaná pole: `title`, `author`, `lang`, `style`, `year` (nebo `date`), `isbn`, `copyright`, `subtitle`, `translator`, `publisher`, `edition`, `drop-cap`, `half-title`, `canon`. Automaticky se vygeneruje titulní strana a záhlaví — stejně jako s `metadata.toml`. V adresářovém režimu (s `metadata.toml`) se YAML front matter ignoruje.
 
 ## metadata.toml
 
-Úplný příklad se všemi podporovanými klíči:
+Schéma je sladěné se specifikací projektu [mdf](../mdf/docs/metadata-toml-spec.md):
+identita dokumentu je na top-levelu, ostatní sekce jsou `[chapters]`,
+`[options]`, `[page]` a `[paths]`. Klíče jsou v `kebab-case`. Všechna pole
+jsou volitelná, neznámá pole nástroj ignoruje.
 
 ```toml
-[book]
-title     = "Název knihy"
-author    = "Jméno Příjmení"
-year      = 2026
-isbn      = "978-80-000-0000-0"
-copyright = "© 2026 Jméno Příjmení"  # volitelné; jinak se generuje z year + author
-toc       = true        # true = výchozí dle stylu, "front" / "back" = explicitní
+# ── Identita dokumentu ─────────────────────────────────────────
+title  = "Název knihy"
+author = "Jméno Příjmení"
+lang   = "cs"                    # cs | en
+style  = "book"                  # minimal | book | academic | manual | cesta
 
-[typesetting]
-paper      = "a4"       # a4 | b5 | a5 | letter
-font       = "Pagella"  # název rodiny pro \fontfam
-base_size  = "11pt"     # základní velikost písma
-paragraph  = "noindent" # noindent = \parindent=0pt; výchozí = odsazení
-margin_left   = 35      # okraje v mm (volitelné)
-margin_right  = 25
-margin_top    = 30
-margin_bottom = 30
-header = "{author} & {title} & {folio}"  # záhlaví: levá & střed & pravá část
-footer = "& \folio &"                    # zápatí: levá & střed & pravá část
-toc_depth = 1    # hloubka obsahu: 1 = jen kapitoly, 2 = + sekce (výchozí pro book = 1, jinak = vše)
+# ── Bibliografické údaje (volitelné) ───────────────────────────
+year       = 2026
+isbn       = "978-80-000-0000-0"
+copyright  = "© 2026 Jméno Příjmení"
+subtitle   = "Podtitul"
+translator = "Překladatel"
+publisher  = "Vydavatel"
+edition    = "1. vydání"
 
+# ── Kapitoly (volitelné; výchozí: chapters/*.md abecedně) ──────
+[chapters]
+files = ["chapters/01_intro.md", "chapters/02_body.md"]
+
+# ── Engine options ─────────────────────────────────────────────
+[options]
+toc       = "front"    # "off" | "front" | "back" | true | false
+toc-depth = 1          # hloubka obsahu
+toc-title = "Obsah"
+drop-cap  = true       # drop cap na 1. odstavci po nadpisu
+font      = "Pagella"  # rodina pro \fontfam
+widows    = 2
+orphans   = 2
+# md2optex-specific (mdf řeší přes CSS):
+base-size  = "11pt"
+paragraph  = "noindent"                   # indent | noindent
+header     = "{author} & {title} & {folio}"
+footer     = "& \\folio &"
+half-title = true                         # polotitul (výchozí pro book)
+
+# ── Stránka ────────────────────────────────────────────────────
+[page]
+size   = "A4"          # A4 | A5 | B5 | Letter
+margin = "25mm"        # CSS shorthand: 1, 2, 3 nebo 4 hodnoty
+margin-top    = "30mm" # per-side override
+margin-bottom = "30mm"
+margin-left   = "35mm"
+margin-right  = "25mm"
+canon  = "tschichold"  # odvozené asymetrické okraje; přepisuje margin-*
+
+# ── Cesty (relativně k metadata.toml) ──────────────────────────
 [paths]
-images      = "images"           # adresář s obrázky (relativně k metadata.toml)
-hyphenation = "hyphenation.txt"  # slovník dělení slov
-
-[style]
-name = "book"   # minimal | book | academic | manual, nebo cesta k .tex souboru
+images      = "images"
+hyphenation = "hyphenation.txt"
 ```
+
+### Kompatibilita
+
+Struktura je supersetem mdf specifikace. Pole specifická pro md2optex
+(`base-size`, `paragraph`, `header`, `footer`, `half-title`) jsou v mdf
+řešena přes CSS — pro přenositelnou konfiguraci je vynech.
 
 ### Záhlaví a zápatí
 
@@ -230,11 +261,11 @@ name = "book"   # minimal | book | academic | manual, nebo cesta k .tex souboru
 | `toc = true` | výchozí dle stylu (styl `book` → vzadu, ostatní → vpředu) |
 | `toc = "front"` | obsah vždy vpředu (za titulní stranou) |
 | `toc = "back"` | obsah vždy vzadu (na konci dokumentu) |
-| `toc = false` nebo vynecháno | bez obsahu |
+| `toc = false` / `"off"` / vynecháno | bez obsahu |
 
 ### Kolofon / rubová strana titulu
 
-Pokud jsou v `[book]` vyplněna pole `year`, `author` nebo `isbn`:
+Pokud jsou vyplněna top-level pole `year`, `author` nebo `isbn`:
 
 - **Ostatní styly**: údaje (copyright, ISBN) se vypisují na rubové straně titulu (str. 2).
 - **Styl `book`**: rubová strana zůstane prázdná a kolofon (tiráž) se vygeneruje na **konci knihy** — za obsahem a TOC, jako poslední strana před `\bye`. Tiráž obsahuje název, autora, copyright a ISBN.
@@ -258,9 +289,9 @@ Knižní sazba beletrie nebo prózy. „Kniha bez práce" — s rozumnými defau
 1. **Polotitul** (half-title) — samostatná první strana jen s názvem, verso prázdné.
 2. **Titulní strana** — název + autor.
 3. **Verso titulní strany** — tiráž (© rok autor, ISBN) místo na konci knihy.
-4. **Obsah** — vzadu (český standard), lze změnit přes `book.toc = "front"`.
+4. **Obsah** — vzadu (český standard), lze změnit přes `options.toc = "front"`.
 
-**Drop cap** (zvětšené první písmeno první odstavce kapitoly) se generuje automaticky. Pokud u tebe blbne (krátký první odstavec, speciální znaky), vypni ho: `typesetting.drop_cap = false`.
+**Drop cap** (zvětšené první písmeno první odstavce kapitoly) se generuje automaticky. Pokud u tebe blbne (krátký první odstavec, speciální znaky), vypni ho: `options.drop-cap = false`.
 
 **Drop folio** — na první straně každé kapitoly se netiskne záhlaví ani číslo stránky (standard).
 
@@ -269,15 +300,15 @@ Knižní sazba beletrie nebo prózy. „Kniha bez práce" — s rozumnými defau
 **Přepínače v metadata.toml** (všechno volitelné, defaulty odpovídají sazbě beletrie):
 
 ```toml
-[book]
-half_title = false  # vypne polotitul → verso titulky zůstane prázdné,
+[options]
+half-title = false  # vypne polotitul → verso titulky zůstane prázdné,
                     # tiráž se přesune zpět na konec knihy
+drop-cap   = false  # vypne drop cap na začátku kapitol
 
-[typesetting]
-drop_cap = false    # vypne drop cap na začátku kapitol
-canon    = "tschichold"  # Tschicholdovo zrcadlo sazby — asymetrické okraje
-                         # odvozené z rozměru papíru (vnitřní < vnější,
-                         # horní < spodní). Přepisuje margin_* hodnoty.
+[page]
+canon = "tschichold"  # Tschicholdovo zrcadlo sazby — asymetrické okraje
+                      # odvozené z rozměru papíru (vnitřní < vnější,
+                      # horní < spodní). Přepisuje margin-* hodnoty.
 ```
 
 Vhodný pro romány, povídkové sbírky, monografie.
@@ -319,7 +350,7 @@ Styl je TeX snippet vložený za preambulí; může předefinovat OpTeX makra, n
 
 ## Titulní strana
 
-Pokud jsou v `[book]` vyplněna pole `title` a/nebo `author`, vygeneruje se automaticky titulní strana:
+Pokud je vyplněno top-level pole `title` a/nebo `author`, vygeneruje se automaticky titulní strana:
 
 - Vycentrovaný název v 18pt tučném písmu
 - Jméno autora v kurzívě

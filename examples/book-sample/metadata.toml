@@ -1,9 +1,9 @@
-[book]
-title     = "Ukázková kniha"
-author    = "Jiří Vysoký"
-year      = 2026
-isbn      = "978-80-000-0000-0"
-toc       = true
+title  = "Ukázková kniha"
+author = "Jiří Vysoký"
+lang   = "cs"
+style  = "book"
+year   = 2026
+isbn   = "978-80-000-0000-0"
 
-[style]
-name = "book"
+[options]
+toc = "front"

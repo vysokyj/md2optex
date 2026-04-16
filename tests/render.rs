@@ -611,56 +611,38 @@ fn span_in_sentence() {
 
 // ── Book style features ─────────────────────────────────────────────────────
 
-use md2optex::metadata::{Book, Metadata, Typesetting};
+use md2optex::metadata::{Metadata, Options, Page};
 use md2optex::renderer::{render, render_body_book};
 
-fn book_meta(mut ts: Typesetting, mut book: Book) -> Metadata {
-    // Fill in a minimal book so front-matter pipeline emits everything.
-    if book.title.is_none() {
-        book.title = Some("The Test".to_string());
+/// Builds a minimal book Metadata with sensible defaults; callers override via
+/// the returned `Metadata` fields before calling `render`.
+fn book_meta(mut opts: Options, mut page: Page) -> Metadata {
+    if page.size.is_none() {
+        page.size = Some("B5".into());
     }
-    if book.author.is_none() {
-        book.author = Some("A. U. Thor".to_string());
-    }
-    if ts.paper.is_none() {
-        ts.paper = Some("b5".to_string());
+    // ensure the test's Options are kept even if empty, so serde-only fields
+    // are carried through.
+    if opts.half_title.is_none() && opts.drop_cap.is_none() && opts.toc_depth.is_none() {
+        // Keep `opts` as-is; we just want to record that the builder ran.
+        let _ = &mut opts;
     }
     Metadata {
-        book: Some(book),
-        typesetting: Some(ts),
-        paths: None,
-        style: None,
-    }
-}
-
-fn empty_ts() -> Typesetting {
-    Typesetting {
-        paper: None,
-        font: None,
-        base_size: None,
-        paragraph: None,
-        margin_left: None,
-        margin_right: None,
-        margin_top: None,
-        margin_bottom: None,
-        header: None,
-        footer: None,
-        toc_depth: None,
-        drop_cap: None,
-        canon: None,
-    }
-}
-
-fn empty_book() -> Book {
-    Book {
-        title: None,
-        author: None,
+        title: Some("The Test".into()),
+        author: Some("A. U. Thor".into()),
         year: Some(2026),
-        isbn: Some("978-80-000-0000-0".to_string()),
-        toc: None,
-        copyright: None,
-        half_title: None,
+        isbn: Some("978-80-000-0000-0".into()),
+        options: Some(opts),
+        page: Some(page),
+        ..Metadata::default()
     }
+}
+
+fn empty_opts() -> Options {
+    Options::default()
+}
+
+fn empty_page() -> Page {
+    Page::default()
 }
 
 #[test]
@@ -675,11 +657,11 @@ fn book_drop_cap_default_enabled() {
 #[test]
 fn book_drop_cap_can_be_disabled() {
     let meta = book_meta(
-        Typesetting {
+        Options {
             drop_cap: Some(false),
-            ..empty_ts()
+            ..empty_opts()
         },
-        empty_book(),
+        empty_page(),
     );
     let out = render(
         "# Chapter\n\nFirst paragraph here.",
@@ -709,11 +691,11 @@ fn non_book_style_has_no_drop_cap_by_default() {
 #[test]
 fn canon_tschichold_emits_asymmetric_b5_margins() {
     let meta = book_meta(
-        Typesetting {
-            canon: Some("tschichold".to_string()),
-            ..empty_ts()
+        empty_opts(),
+        Page {
+            canon: Some("tschichold".into()),
+            ..empty_page()
         },
-        empty_book(),
     );
     let out = render("text", Some(&meta), &[], 96, Some("book"), None, None).unwrap();
     assert!(
@@ -725,14 +707,14 @@ fn canon_tschichold_emits_asymmetric_b5_margins() {
 #[test]
 fn no_canon_keeps_symmetric_margins() {
     let meta = book_meta(
-        Typesetting {
-            margin_left: Some(25),
-            margin_right: Some(20),
-            margin_top: Some(25),
-            margin_bottom: Some(25),
-            ..empty_ts()
+        empty_opts(),
+        Page {
+            margin_left: Some("25mm".into()),
+            margin_right: Some("20mm".into()),
+            margin_top: Some("25mm".into()),
+            margin_bottom: Some("25mm".into()),
+            ..empty_page()
         },
-        empty_book(),
     );
     let out = render("text", Some(&meta), &[], 96, Some("book"), None, None).unwrap();
     assert!(
@@ -743,7 +725,7 @@ fn no_canon_keeps_symmetric_margins() {
 
 #[test]
 fn book_half_title_default_on() {
-    let meta = book_meta(empty_ts(), empty_book());
+    let meta = book_meta(empty_opts(), empty_page());
     let out = render("text", Some(&meta), &[], 96, Some("book"), None, None).unwrap();
     // Half-title block uses \vskip0.3\vsize as its signature.
     assert!(
@@ -763,11 +745,11 @@ fn book_half_title_default_on() {
 #[test]
 fn book_half_title_can_be_disabled() {
     let meta = book_meta(
-        empty_ts(),
-        Book {
+        Options {
             half_title: Some(false),
-            ..empty_book()
+            ..empty_opts()
         },
+        empty_page(),
     );
     let out = render("text", Some(&meta), &[], 96, Some("book"), None, None).unwrap();
     assert!(
@@ -783,7 +765,7 @@ fn book_half_title_can_be_disabled() {
 
 #[test]
 fn book_half_title_moves_colophon_to_verso() {
-    let meta = book_meta(empty_ts(), empty_book());
+    let meta = book_meta(empty_opts(), empty_page());
     let out = render("text", Some(&meta), &[], 96, Some("book"), None, None).unwrap();
     // rfind skips the \def\maketitle preamble match.
     let title_pos = out.rfind("\\maketitle").unwrap();
@@ -799,11 +781,114 @@ fn book_half_title_moves_colophon_to_verso() {
 
 #[test]
 fn non_book_style_no_half_title_by_default() {
-    let meta = book_meta(empty_ts(), empty_book());
+    let meta = book_meta(empty_opts(), empty_page());
     // Explicitly not passing "book" as style.
     let out = render("text", Some(&meta), &[], 96, None, None, None).unwrap();
     assert!(
         !out.contains("\\vskip0.3\\vsize"),
         "non-book styles must not emit half-title by default, got: {out}"
+    );
+}
+
+// ── mdf-compatible metadata.toml schema ─────────────────────────────────────
+
+#[test]
+fn metadata_toml_parses_flat_top_level_and_options() {
+    let toml = r#"
+title = "Kniha"
+author = "Autor"
+lang = "cs"
+style = "book"
+year = 2026
+isbn = "978-80-000-0000-0"
+
+[options]
+toc = "front"
+toc-depth = 2
+drop-cap = true
+
+[page]
+size = "A5"
+canon = "tschichold"
+"#;
+    let meta: Metadata = toml::from_str(toml).unwrap();
+    assert_eq!(meta.title.as_deref(), Some("Kniha"));
+    assert_eq!(meta.author.as_deref(), Some("Autor"));
+    assert_eq!(meta.style.as_deref(), Some("book"));
+    assert_eq!(meta.year, Some(2026));
+
+    let opts = meta.options.as_ref().unwrap();
+    assert_eq!(opts.toc_depth, Some(2));
+    assert_eq!(opts.drop_cap, Some(true));
+
+    let page = meta.page.as_ref().unwrap();
+    assert_eq!(page.size.as_deref(), Some("A5"));
+    assert_eq!(page.canon.as_deref(), Some("tschichold"));
+}
+
+#[test]
+fn metadata_toml_margin_shorthand_and_per_side_override() {
+    let toml = r#"
+[page]
+size = "A4"
+margin = "30mm 20mm"
+margin-left = "40mm"
+"#;
+    let meta: Metadata = toml::from_str(toml).unwrap();
+    let out = render("x", Some(&meta), &[], 96, Some("minimal"), None, None).unwrap();
+    // shorthand "30mm 20mm" → top/bottom=30, left/right=20; margin-left override → 40.
+    // OpTeX ordering: (left, right, top, bottom).
+    assert!(
+        out.contains("\\margins/1 a4 (40,20,30,30)mm"),
+        "expected shorthand + override margins, got: {out}"
+    );
+}
+
+#[test]
+fn metadata_toml_toc_off_string_suppresses_toc() {
+    let toml = r#"
+title = "X"
+author = "Y"
+style = "book"
+
+[options]
+toc = "off"
+"#;
+    let meta: Metadata = toml::from_str(toml).unwrap();
+    let out = render("body", Some(&meta), &[], 96, Some("book"), None, None).unwrap();
+    assert!(
+        !out.contains("\\maketoc"),
+        "toc='off' must not emit TOC, got: {out}"
+    );
+}
+
+#[test]
+fn metadata_toml_chapters_files_override_directory_scan() {
+    use std::fs;
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    fs::write(
+        dir.join("metadata.toml"),
+        "[chapters]\nfiles = [\"b.md\", \"a.md\"]\n",
+    )
+    .unwrap();
+    fs::write(dir.join("a.md"), "# Alpha\n").unwrap();
+    fs::write(dir.join("b.md"), "# Beta\n").unwrap();
+
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_md2optex"))
+        .arg(dir)
+        .output()
+        .expect("run md2optex");
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let s = String::from_utf8(output.stdout).unwrap();
+    let beta_pos = s.find("\\chap Beta").expect("Beta chapter emitted");
+    let alpha_pos = s.find("\\chap Alpha").expect("Alpha chapter emitted");
+    assert!(
+        beta_pos < alpha_pos,
+        "[chapters].files order must be honoured (b before a), got: {s}"
     );
 }

@@ -187,7 +187,7 @@ fn load_input(args: &Args) -> Result<(String, Option<Metadata>), Error> {
             } else {
                 None
             };
-            let markdown = load_chapters(path)?;
+            let markdown = load_chapters(path, metadata.as_ref())?;
             Ok((markdown, metadata))
         }
         Some(path) => {
@@ -197,8 +197,27 @@ fn load_input(args: &Args) -> Result<(String, Option<Metadata>), Error> {
     }
 }
 
-fn load_chapters(dir: &Path) -> Result<String, Error> {
-    // Accept both "chapters" (preferred) and "kapitoly" (legacy Czech name)
+fn load_chapters(dir: &Path, metadata: Option<&Metadata>) -> Result<String, Error> {
+    // Explicit list from `[chapters] files = [...]` takes priority.
+    if let Some(files) = metadata
+        .and_then(|m| m.chapters.as_ref())
+        .and_then(|c| c.files.as_ref())
+        && !files.is_empty()
+    {
+        let mut out = String::new();
+        for rel in files {
+            let path = if rel.is_absolute() {
+                rel.clone()
+            } else {
+                dir.join(rel)
+            };
+            out.push_str(&fs::read_to_string(&path)?);
+            out.push('\n');
+        }
+        return Ok(out);
+    }
+
+    // Fallback: read `chapters/*.md` (or legacy `kapitoly/*.md`) alphabetically.
     let chapters_dir = ["chapters", "kapitoly"]
         .iter()
         .map(|name| dir.join(name))

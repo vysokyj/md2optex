@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 use crate::error::Error;
-use crate::metadata::{Metadata, TocValue};
+use crate::metadata::{
+    Metadata, Page, TocValue, normalize_paper, parse_length_mm, parse_margin_shorthand,
+};
 use crate::styles;
 use crate::typo;
 
@@ -24,6 +26,7 @@ enum TocPlacement {
 
 /// Resolves TOC placement from metadata + style default.
 /// Style "book" defaults to Back; all others default to Front.
+/// Values: `false`/`"off"` = none, `true`/`"front"` = style default, `"back"`.
 fn resolve_toc(toc: Option<&TocValue>, style_name: Option<&str>) -> Option<TocPlacement> {
     let style_default = match style_name {
         Some("book") => TocPlacement::Back,
@@ -32,8 +35,11 @@ fn resolve_toc(toc: Option<&TocValue>, style_name: Option<&str>) -> Option<TocPl
     match toc {
         None | Some(TocValue::Bool(false)) => None,
         Some(TocValue::Bool(true)) => Some(style_default),
-        Some(TocValue::Position(s)) if s == "back" => Some(TocPlacement::Back),
-        Some(TocValue::Position(_)) => Some(TocPlacement::Front),
+        Some(TocValue::Position(s)) => match s.to_ascii_lowercase().as_str() {
+            "off" | "none" | "false" => None,
+            "back" => Some(TocPlacement::Back),
+            _ => Some(TocPlacement::Front),
+        },
     }
 }
 
@@ -75,31 +81,27 @@ pub fn render(
         (metadata, markdown)
     };
 
-    let style_name = style.or_else(|| {
-        metadata
-            .and_then(|m| m.style.as_ref())
-            .and_then(|s| s.name.as_deref())
-    });
+    let style_name = style.or_else(|| metadata.and_then(|m| m.style.as_deref()));
     let toc = metadata
-        .and_then(|m| m.book.as_ref())
-        .and_then(|b| b.toc.as_ref());
+        .and_then(|m| m.options.as_ref())
+        .and_then(|o| o.toc.as_ref());
     let toc_placement = resolve_toc(toc, style_name);
 
     // nonum: suppress heading numbers (book style convention)
     let nonum = style_name == Some("book");
     // toc_depth: max heading level included in TOC (book default = 1, others = no limit)
     let toc_depth = metadata
-        .and_then(|m| m.typesetting.as_ref())
-        .and_then(|t| t.toc_depth)
+        .and_then(|m| m.options.as_ref())
+        .and_then(|o| o.toc_depth)
         .unwrap_or(if nonum { 1 } else { u32::MAX });
 
     let is_book = style_name == Some("book");
 
     // Drop cap: enabled by default for book style, disabled for others;
-    // metadata.toml `typesetting.drop_cap` always wins.
+    // metadata.toml `options.drop-cap` always wins.
     let drop_cap_enabled = metadata
-        .and_then(|m| m.typesetting.as_ref())
-        .and_then(|t| t.drop_cap)
+        .and_then(|m| m.options.as_ref())
+        .and_then(|o| o.drop_cap)
         .unwrap_or(is_book);
 
     let mut out = String::new();
@@ -134,8 +136,11 @@ pub fn render(
     // the colophon already sits on the verso of the title page.
     if is_book
         && let Some(meta) = metadata
-        && let Some(book) = &meta.book
-        && !book.half_title.unwrap_or(true)
+        && !meta
+            .options
+            .as_ref()
+            .and_then(|o| o.half_title)
+            .unwrap_or(true)
     {
         out.push_str(&back_colophon_block(meta));
     }
@@ -373,15 +378,75 @@ fn tschichold_margins(paper: &str) -> (u32, u32, u32, u32) {
     }
 }
 
+/// Produces the OpTeX `\margins` line from a `[page]` section, or `None` if
+/// the section has nothing worth emitting. Honours `canon = "tschichold"` for
+/// asymmetric two-sided margins; otherwise parses CSS-style margin shorthand
+/// and per-side overrides.
+fn page_margins_line(page: &Page) -> Option<String> {
+    let has_size = page.size.is_some();
+    let has_margin = page.margin.is_some()
+        || page.margin_top.is_some()
+        || page.margin_right.is_some()
+        || page.margin_bottom.is_some()
+        || page.margin_left.is_some();
+    let use_canon = page.canon.as_deref() == Some("tschichold");
+    if !has_size && !has_margin && !use_canon {
+        return None;
+    }
+
+    let paper = page
+        .size
+        .as_deref()
+        .map(normalize_paper)
+        .unwrap_or_else(|| "a4".to_string());
+
+    if use_canon {
+        let (inner, outer, top, bottom) = tschichold_margins(&paper);
+        return Some(format!(
+            "\\margins/2 {paper} ({inner},{outer},{top},{bottom})mm\n"
+        ));
+    }
+
+    // CSS shorthand starts the baseline; per-side overrides replace individual values.
+    let (mut top, mut right, mut bottom, mut left) = page
+        .margin
+        .as_deref()
+        .and_then(parse_margin_shorthand)
+        .unwrap_or((30.0, 25.0, 30.0, 25.0));
+    if let Some(s) = &page.margin_top
+        && let Some(v) = parse_length_mm(s)
+    {
+        top = v;
+    }
+    if let Some(s) = &page.margin_right
+        && let Some(v) = parse_length_mm(s)
+    {
+        right = v;
+    }
+    if let Some(s) = &page.margin_bottom
+        && let Some(v) = parse_length_mm(s)
+    {
+        bottom = v;
+    }
+    if let Some(s) = &page.margin_left
+        && let Some(v) = parse_length_mm(s)
+    {
+        left = v;
+    }
+    let (l, r, t, b) = (
+        left.round() as u32,
+        right.round() as u32,
+        top.round() as u32,
+        bottom.round() as u32,
+    );
+    Some(format!("\\margins/1 {paper} ({l},{r},{t},{b})mm\n"))
+}
+
 /// Generates the back colophon (tiráž) for book style — placed at the very end
 /// of the document, before `\bye`. The content is pushed to the bottom of the page.
 /// Only emitted when at least one of copyright/year/isbn is present in metadata.
-fn back_colophon_block(metadata: &Metadata) -> String {
-    let book = match &metadata.book {
-        Some(b) => b,
-        None => return String::new(),
-    };
-    let has_content = book.copyright.is_some() || book.year.is_some() || book.isbn.is_some();
+fn back_colophon_block(meta: &Metadata) -> String {
+    let has_content = meta.copyright.is_some() || meta.year.is_some() || meta.isbn.is_some();
     if !has_content {
         return String::new();
     }
@@ -391,25 +456,25 @@ fn back_colophon_block(metadata: &Metadata) -> String {
     s.push_str("\\bgroup\\footline={}\\headline={}\n");
     s.push_str("\\null\\vfil\n");
 
-    if book.title.is_some() || book.author.is_some() {
-        if book.title.is_some() {
+    if meta.title.is_some() || meta.author.is_some() {
+        if meta.title.is_some() {
             s.push_str("\\noindent {\\bf\\thetitle}\\par\n");
         }
-        if book.author.is_some() {
+        if meta.author.is_some() {
             s.push_str("\\noindent {\\it\\theauthor}\\par\n");
         }
         s.push_str("\\smallskip\n");
     }
 
-    if let Some(cr) = &book.copyright {
+    if let Some(cr) = &meta.copyright {
         s.push_str(&format!("\\noindent {cr}\\par\n"));
-    } else if let (Some(year), Some(author)) = (&book.year, &book.author) {
+    } else if let (Some(year), Some(author)) = (&meta.year, &meta.author) {
         s.push_str(&format!("\\noindent \\char169 \\ {year} {author}\\par\n"));
-    } else if let Some(year) = &book.year {
+    } else if let Some(year) = &meta.year {
         s.push_str(&format!("\\noindent \\char169 \\ {year}\\par\n"));
     }
 
-    if let Some(isbn) = &book.isbn {
+    if let Some(isbn) = &meta.isbn {
         s.push_str(&format!("\\noindent ISBN: {isbn}\\par\n"));
     }
 
@@ -460,12 +525,8 @@ fn build_preamble(
     // \IC{X}{rest}: drop cap (initial capital) — first letter enlarged, rest of text follows.
     s.push_str("\\def\\IC#1#2{{\\font\\ICfont=\\fontname\\tenrm\\space at 2.5em\\relax\\leavevmode\\hbox{\\ICfont #1}\\kern-.05em}#2}\n");
 
-    // Resolve and inject style: CLI --style takes priority over metadata [styl].
-    let style_name = style.or_else(|| {
-        metadata
-            .and_then(|m| m.style.as_ref())
-            .and_then(|st| st.name.as_deref())
-    });
+    // Resolve and inject style: CLI --style takes priority over metadata top-level `style`.
+    let style_name = style.or_else(|| metadata.and_then(|m| m.style.as_deref()));
     if let Some(name) = style_name {
         match styles::resolve(name, base_dir) {
             Some(content) => s.push_str(&content),
@@ -474,52 +535,36 @@ fn build_preamble(
     }
 
     // Metadata overrides: applied after the style so they take precedence.
-    if let Some(meta) = metadata
-        && let Some(ts) = &meta.typesetting
-    {
-        if let Some(font) = &ts.font {
-            s.push_str(&format!("\\fontfam[{}]\n", font));
-        }
-        if let Some(size) = &ts.base_size {
-            // e.g. "11pt" → \typosize[11/13]
-            let pt: u32 = size.trim_end_matches("pt").parse().unwrap_or(10);
-            let leading = pt * 13 / 10;
-            s.push_str(&format!("\\typosize[{pt}/{leading}]\n"));
-        }
-        // Emit \margins whenever paper size or any margin is specified in metadata.
-        // This lets `papir = "b5"` work without requiring explicit margin values.
-        let has_paper = ts.paper.is_some();
-        let has_margins = ts.margin_left.is_some()
-            || ts.margin_right.is_some()
-            || ts.margin_top.is_some()
-            || ts.margin_bottom.is_some();
-        let use_canon = ts.canon.as_deref() == Some("tschichold");
-        if has_paper || has_margins || use_canon {
-            let paper = ts.paper.as_deref().unwrap_or("a4");
-            if use_canon {
-                let (inner, outer, top, bottom) = tschichold_margins(paper);
-                // /2 = two-sided: first two values are inner/outer margins.
-                s.push_str(&format!(
-                    "\\margins/2 {paper} ({inner},{outer},{top},{bottom})mm\n"
-                ));
-            } else {
-                let left = ts.margin_left.unwrap_or(25);
-                let right = ts.margin_right.unwrap_or(25);
-                let top = ts.margin_top.unwrap_or(30);
-                let bottom = ts.margin_bottom.unwrap_or(30);
-                s.push_str(&format!(
-                    "\\margins/1 {paper} ({left},{right},{top},{bottom})mm\n"
-                ));
+    if let Some(meta) = metadata {
+        if let Some(opts) = &meta.options {
+            if let Some(font) = &opts.font {
+                s.push_str(&format!("\\fontfam[{}]\n", font));
+            }
+            if let Some(size) = &opts.base_size {
+                // e.g. "11pt" → \typosize[11/13]
+                let pt: u32 = size.trim_end_matches("pt").parse().unwrap_or(10);
+                let leading = pt * 13 / 10;
+                s.push_str(&format!("\\typosize[{pt}/{leading}]\n"));
             }
         }
-        if let Some(header) = &ts.header {
-            s.push_str(&format!("\\headline={{{}}}\n", running_line(header)));
+
+        // Page setup: emit \margins when any size/margin/canon is specified.
+        if let Some(page) = &meta.page
+            && let Some(line) = page_margins_line(page)
+        {
+            s.push_str(&line);
         }
-        if let Some(footer) = &ts.footer {
-            s.push_str(&format!("\\footline={{{}}}\n", running_line(footer)));
-        }
-        if ts.paragraph.as_deref() == Some("noindent") {
-            s.push_str("\\parindent=0pt\n");
+
+        if let Some(opts) = &meta.options {
+            if let Some(header) = &opts.header {
+                s.push_str(&format!("\\headline={{{}}}\n", running_line(header)));
+            }
+            if let Some(footer) = &opts.footer {
+                s.push_str(&format!("\\footline={{{}}}\n", running_line(footer)));
+            }
+            if opts.paragraph.as_deref() == Some("noindent") {
+                s.push_str("\\parindent=0pt\n");
+            }
         }
     }
 
@@ -533,42 +578,39 @@ fn build_preamble(
 
     s.push('\n');
 
-    if let Some(meta) = metadata
-        && let Some(book) = &meta.book
-    {
-        if let Some(title) = &book.title {
+    if let Some(meta) = metadata {
+        if let Some(title) = &meta.title {
             s.push_str(&format!("\\gdef\\thetitle{{{title}}}\n"));
         }
-        if let Some(author) = &book.author {
+        if let Some(author) = &meta.author {
             s.push_str(&format!("\\gdef\\theauthor{{{author}}}\n"));
         }
         // Half-title: enabled for book style by default; opt-in for others.
         // Requires at least a title to show.
-        let half_title_enabled = book.half_title.unwrap_or(is_book) && book.title.is_some();
+        let half_title_opt = meta.options.as_ref().and_then(|o| o.half_title);
+        let half_title_enabled = half_title_opt.unwrap_or(is_book) && meta.title.is_some();
         // When half-title is shown, the colophon (copyright / ISBN / rok) moves
         // to the verso of the full title page instead of the back of the book.
-        let colophon_on_title_verso = half_title_enabled
-            && (book.copyright.is_some() || book.year.is_some() || book.isbn.is_some());
+        let has_colophon = meta.copyright.is_some() || meta.year.is_some() || meta.isbn.is_some();
+        let colophon_on_title_verso = half_title_enabled && has_colophon;
 
         if half_title_enabled {
             s.push_str(&half_title_block());
         }
 
-        if book.title.is_some() || book.author.is_some() {
+        if meta.title.is_some() || meta.author.is_some() {
             s.push_str("\\maketitle\n");
             // Verso of title page.
-            let emit_colophon_here = colophon_on_title_verso
-                || (!is_book
-                    && (book.copyright.is_some() || book.year.is_some() || book.isbn.is_some()));
+            let emit_colophon_here = colophon_on_title_verso || (!is_book && has_colophon);
             if emit_colophon_here {
                 s.push_str("\\bgroup\\footline={}\\headline={}\n");
                 s.push_str("\\null\\vfil\n");
-                if let Some(cr) = &book.copyright {
+                if let Some(cr) = &meta.copyright {
                     s.push_str(&format!("\\noindent {cr}\\par\n"));
-                } else if let (Some(year), Some(author)) = (&book.year, &book.author) {
+                } else if let (Some(year), Some(author)) = (&meta.year, &meta.author) {
                     s.push_str(&format!("\\noindent \\char169 \\ {year} {author}\\par\n"));
                 }
-                if let Some(isbn) = &book.isbn {
+                if let Some(isbn) = &meta.isbn {
                     s.push_str(&format!("\\noindent ISBN: {isbn}\\par\n"));
                 }
                 s.push_str("\\vfil\\eject\n");
@@ -582,7 +624,7 @@ fn build_preamble(
         }
         // Reset page counter to 1 so body text starts at page 1,
         // regardless of how many front-matter pages preceded it.
-        if book.title.is_some() || book.author.is_some() {
+        if meta.title.is_some() || meta.author.is_some() {
             s.push_str("\\pageno=1\n");
         }
     }
